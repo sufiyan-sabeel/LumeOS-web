@@ -1,0 +1,6 @@
+{
+  "format": "lume-micro",
+  "note": "Placeholder weight container. A real GGUF/ONNX file can replace this. This build ships a rule-based fallback runtime only.",
+  "layers": 0,
+  "params": 0
+}
