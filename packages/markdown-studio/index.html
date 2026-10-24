@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Markdown Studio</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0f1a;color:#e8edf7;font-family:system-ui,sans-serif}
+  .wrap{display:flex;height:100%}
+  textarea,.preview{flex:1;padding:16px;font-size:14px;line-height:1.6;overflow:auto}
+  textarea{background:#05070d;color:#c8f7d4;border:none;outline:none;font-family:ui-monospace,monospace;resize:none}
+  .preview{border-left:1px solid rgba(255,255,255,0.1)}
+  .preview h1,.preview h2{border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:4px}
+  .preview code{background:rgba(255,255,255,0.08);padding:2px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <textarea id="src"># Markdown Studio
+
+A **LumeOS** web package.
+
+- runs fully offline
+- installed into OPFS
+- served by the service worker
+
+`inline code` and more.
+</textarea>
+  <div class="preview" id="out"></div>
+</div>
+<script src="lume-bridge.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
