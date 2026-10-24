@@ -1,0 +1,15 @@
+{
+  "id": "notes-pro",
+  "name": "Notes Pro (Native)",
+  "glyph": "📓",
+  "type": "native",
+  "version": "2.0.0",
+  "description": "Native desktop companion app. LumeOS detects your OS and offers the matching installer or runs it via the local runtime bridge.",
+  "installers": {
+    "windows": "notes-pro-setup.msi",
+    "macos": "notes-pro.dmg",
+    "linux": "notes-pro.AppImage",
+    "android": "notes-pro.apk"
+  },
+  "files": []
+}
