@@ -1,0 +1,57 @@
+{
+  "name": "LumeOS",
+  "short_name": "LumeOS",
+  "description": "LumeOS - a lightweight hybrid web-desktop operating system with a C backend.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "background_color": "#0b0f1a",
+  "theme_color": "#0b0f1a",
+  "categories": [
+    "productivity",
+    "utilities",
+    "developer"
+  ],
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/?open=",
+      "accept": {
+        "text/plain": [
+          ".txt",
+          ".md"
+        ],
+        "application/json": [
+          ".json"
+        ]
+      }
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Files",
+      "url": "/?app=files"
+    },
+    {
+      "name": "Terminal",
+      "url": "/?app=terminal"
+    },
+    {
+      "name": "Notes",
+      "url": "/?app=notes"
+    }
+  ]
+}
