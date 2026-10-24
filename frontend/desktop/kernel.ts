@@ -6,6 +6,7 @@
  */
 
 import { osState } from './state.js';
+import { appUrl } from './base.js';
 import { bus } from './events.js';
 import { Desktop, type DesktopHost } from './desktop.js';
 import { WindowManager } from './window-manager.js';
@@ -65,6 +66,8 @@ class LumeKernel implements KernelApi, DesktopHost {
   public readonly version = '1.0.0';
 
   private installed = new Map<string, InstalledAppInfo>();
+  /** Resolves once the service worker is active (or has failed to register). */
+  private swReady: Promise<void> = Promise.resolve();
 
   constructor() {
     this.vfs = new Vfs(opfs, this.api);
@@ -74,6 +77,10 @@ class LumeKernel implements KernelApi, DesktopHost {
   /* Boot                                                                */
   /* ================================================================== */
   async boot(): Promise<void> {
+    /* Register the service worker first: it installs asynchronously and the
+     * boot sequence's awaits would otherwise run past the window 'load' event. */
+    this.registerServiceWorker();
+
     boot('Loading settings…', 10);
     await osState.load();
     osState.applyTheme();
@@ -110,7 +117,6 @@ class LumeKernel implements KernelApi, DesktopHost {
     this.desktop.setServerStatus(online);
 
     this.exposeGlobalApi();
-    this.registerServiceWorker();
     this.handleLaunchParams();
 
     boot('Ready', 100);
@@ -165,7 +171,6 @@ class LumeKernel implements KernelApi, DesktopHost {
         const frame = document.createElement('iframe');
         frame.className = 'browser__frame';
         frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-same-origin');
-        frame.src = `/apps/installed/${info.id}/${info.entry ?? 'index.html'}`;
         ctx.window.body.appendChild(frame);
 
         /* LumeOS IPC bridge: installed apps talk to the kernel via postMessage. */
@@ -179,6 +184,12 @@ class LumeKernel implements KernelApi, DesktopHost {
         ctx.window.el.addEventListener('lume:unmount', () =>
           window.removeEventListener('message', onMessage)
         );
+
+        /* The package is served from OPFS by the service worker, so wait for
+         * it to be active before navigating the frame. */
+        void kernel.swReady.then(() => {
+          frame.src = appUrl(`apps/installed/${info.id}/${info.entry ?? 'index.html'}`);
+        });
       },
     };
   }
@@ -359,11 +370,20 @@ class LumeKernel implements KernelApi, DesktopHost {
 
   private registerServiceWorker(): void {
     if (!('serviceWorker' in navigator)) return;
-    window.addEventListener('load', () => {
-      navigator.serviceWorker
-        .register('/service-worker.js')
-        .catch((err: unknown) => console.warn('[LumeOS] service worker failed', err));
-    });
+
+    const register = (): void => {
+      this.swReady = navigator.serviceWorker
+        .register(appUrl('service-worker.js'))
+        .then(() => navigator.serviceWorker.ready.then(() => undefined))
+        .catch((err: unknown) => {
+          console.warn('[LumeOS] service worker failed', err);
+        });
+    };
+
+    /* If the document already finished loading, register immediately;
+     * otherwise wait for the load event. */
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register, { once: true });
   }
 
   private handleLaunchParams(): void {

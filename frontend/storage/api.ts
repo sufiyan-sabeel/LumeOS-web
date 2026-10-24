@@ -4,6 +4,7 @@
  */
 
 import type { SystemInfo, FileEntry, PackageEntry } from '../desktop/types.js';
+import { appUrl } from '../desktop/base.js';
 
 interface FilesListResponse {
   path: string;
@@ -138,6 +139,9 @@ export class ApiClient {
   }
 
   sourceExportUrl(): string {
+    /* With no C backend (e.g. the static GitHub Pages build) fall back to the
+     * source archive shipped alongside the app. */
+    if (!this.online) return appUrl('lumeos-source.tar.gz');
     return this.url('/api/export/project');
   }
 }

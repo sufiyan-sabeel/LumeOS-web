@@ -192,7 +192,7 @@ export const filesApp: LumeApp = {
           ctx.kernel.notify('Delete failed', (e as Error).message, 'error');
         }
       }),
-      mkBtn('⬇ Download LumeOS Source (.zip)', () => {
+      mkBtn('⬇ Download LumeOS Source (.tar.gz)', () => {
         window.open(ctx.kernel.api.sourceExportUrl(), '_blank');
       })
     );

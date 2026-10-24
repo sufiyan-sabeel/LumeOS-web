@@ -1,74 +1,68 @@
 /*
  * LumeOS - service-worker.js
  * Offline asset caching, runtime interception of installed web apps and
- * virtual-file-system routes (/__vfs__/).
+ * virtual-file-system routes.
+ *
+ * Base-path aware: the same file works when LumeOS is served from the domain
+ * root (by the C backend) or from a subpath, as on a GitHub Pages project
+ * site. Everything is resolved relative to `self.registration.scope`.
  *
  * Strategy:
  *   - install: pre-cache the app shell
  *   - fetch:
- *       * /apps/installed/<id>/*  -> served from OPFS/IndexedDB (offline)
- *       * /__vfs__/*              -> served from OPFS
- *       * same-origin GET assets  -> cache-first, then network
- *       * /api/*                  -> network-only (never cached)
+ *       * apps/installed/<id>/*  -> served from OPFS (offline web apps)
+ *       * __vfs__/*              -> served from OPFS
+ *       * api/*                  -> network-only (never cached)
+ *       * same-origin GET assets -> cache-first, then network
  */
 
-const VERSION = 'lume-v1.0.0';
+const VERSION = 'lume-v1.1.0';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
+/* Site base path, e.g. "/" or "/LumeOS-web/". */
+const BASE = new URL(self.registration.scope).pathname;
+
 const SHELL_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/styles/base.css',
-  '/styles/desktop.css',
-  '/styles/apps.css',
-  '/desktop/kernel.js',
+  './',
+  './index.html',
+  './manifest.json',
+  './styles/base.css',
+  './styles/desktop.css',
+  './styles/apps.css',
+  './desktop/kernel.js',
+  './assets/icon.svg',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) =>
-      Promise.all(
-        SHELL_ASSETS.map((url) =>
-          cache.add(url).catch(() => {
-            /* a missing optional asset must not fail installation */
-          })
+    caches
+      .open(SHELL_CACHE)
+      .then((cache) =>
+        Promise.all(
+          SHELL_ASSETS.map((url) =>
+            cache.add(url).catch(() => {
+              /* a missing optional asset must not fail installation */
+            })
+          )
         )
       )
-    ).then(() => self.skipWaiting())
+      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => !k.startsWith(VERSION))
-          .map((k) => caches.delete(k))
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))
+        )
       )
-    ).then(() => self.clients.claim())
+      .then(() => self.clients.claim())
   );
 });
-
-async function serveFromOpfs(pathname) {
-  try {
-    const root = await navigator.storage.getDirectory();
-    const rel = pathname.replace(/^\/__vfs__\//, '').replace(/^\/apps\/installed\//, '');
-    let dir = root;
-    const parts = rel.split('/').filter(Boolean);
-    const file = parts.pop();
-    if (!file) return new Response('Not found', { status: 404 });
-    for (const part of parts) dir = await dir.getDirectoryHandle(part);
-    const handle = await dir.getFileHandle(file);
-    const f = await handle.getFile();
-    const type = guessType(file);
-    return new Response(f, { status: 200, headers: { 'Content-Type': type } });
-  } catch (e) {
-    return new Response('Offline resource unavailable', { status: 404 });
-  }
-}
 
 function guessType(name) {
   const ext = name.split('.').pop().toLowerCase();
@@ -81,21 +75,47 @@ function guessType(name) {
   return map[ext] || 'application/octet-stream';
 }
 
+/** Serve a site-relative path (already stripped of BASE) from OPFS. */
+async function serveFromOpfs(rel) {
+  try {
+    const clean = rel
+      .replace(/^apps\/installed\//, '')
+      .replace(/^__vfs__\//, '');
+    const parts = clean.split('/').filter(Boolean);
+    const file = parts.pop();
+    if (!file) return new Response('Not found', { status: 404 });
+
+    let dir = await navigator.storage.getDirectory();
+    for (const part of parts) dir = await dir.getDirectoryHandle(part);
+    const handle = await dir.getFileHandle(file);
+    const f = await handle.getFile();
+    return new Response(f, {
+      status: 200,
+      headers: { 'Content-Type': guessType(file) },
+    });
+  } catch (e) {
+    return new Response('Offline resource unavailable', { status: 404 });
+  }
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
   if (url.origin !== self.location.origin) return;
 
+  /* Only handle requests inside our own scope/base. */
+  if (!url.pathname.startsWith(BASE)) return;
+  const rel = url.pathname.slice(BASE.length);
+
   /* Installed apps and VFS routes come from local storage first. */
-  if (url.pathname.startsWith('/__vfs__/') ||
-      url.pathname.startsWith('/apps/installed/')) {
-    event.respondWith(serveFromOpfs(url.pathname));
+  if (rel.startsWith('apps/installed/') || rel.startsWith('__vfs__/')) {
+    event.respondWith(serveFromOpfs(rel));
     return;
   }
 
   /* Never cache the API - it is live state. */
-  if (url.pathname.startsWith('/api/')) {
+  if (rel.startsWith('api/')) {
     event.respondWith(fetch(request));
     return;
   }
@@ -113,7 +133,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match('/index.html'));
+        .catch(() => caches.match('./index.html'));
     })
   );
 });

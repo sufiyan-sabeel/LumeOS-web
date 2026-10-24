@@ -1,0 +1,79 @@
+{
+  "catalogVersion": "1.1.0",
+  "generated": "2026-10-24",
+  "packages": [
+    {
+      "id": "hello-canvas",
+      "name": "Hello Canvas",
+      "glyph": "\ud83c\udfa8",
+      "type": "web",
+      "version": "1.0.0",
+      "description": "A tiny animated canvas demo that runs fully offline inside LumeOS.",
+      "entry": "index.html",
+      "files": [
+        "index.html",
+        "app.js",
+        "lume-bridge.js"
+      ],
+      "path": "hello-canvas",
+      "archive": "hello-canvas.lume",
+      "checksums": {
+        "hello-canvas.lume": "74bbc12332197bb6373503a4a4ed462aecac2a3a0bd3a4eebdb059a3e1933866"
+      }
+    },
+    {
+      "id": "markdown-studio",
+      "name": "Markdown Studio",
+      "glyph": "\ud83d\udcd8",
+      "type": "web",
+      "version": "1.0.1",
+      "description": "Live Markdown editor with instant preview, running offline.",
+      "entry": "index.html",
+      "files": [
+        "index.html",
+        "app.js",
+        "lume-bridge.js"
+      ],
+      "path": "markdown-studio",
+      "archive": "markdown-studio.lume",
+      "checksums": {
+        "markdown-studio.lume": "896fc09366cac848f5837a9f9a5c6cb8313e95133600d3c38785977810c61902"
+      }
+    },
+    {
+      "id": "notes-pro",
+      "name": "Notes Pro (Native)",
+      "glyph": "\ud83d\udcd3",
+      "type": "native",
+      "version": "2.0.0",
+      "description": "Native desktop companion app. LumeOS detects your OS and offers the matching installer or runs it via the local runtime bridge.",
+      "installers": {
+        "windows": "notes-pro-setup.msi",
+        "macos": "notes-pro.dmg",
+        "linux": "notes-pro.AppImage",
+        "android": "notes-pro.apk"
+      },
+      "files": [],
+      "path": "notes-pro"
+    },
+    {
+      "id": "tiny-ai",
+      "name": "Tiny Offline Model",
+      "glyph": "\ud83e\udde0",
+      "type": "ai-model",
+      "version": "0.3.0",
+      "description": "A tiny quantised model package (manifest + weights placeholder) for offline use.",
+      "runtime": "wasm",
+      "fallback": "rules",
+      "files": [
+        "model.json",
+        "labels.json"
+      ],
+      "path": "tiny-ai",
+      "archive": "tiny-ai.lume",
+      "checksums": {
+        "tiny-ai.lume": "5408c9f96cb2e54c946265898547a5c943f79a05751dfdb013988a1520bf651a"
+      }
+    }
+  ]
+}

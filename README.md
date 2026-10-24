@@ -13,6 +13,11 @@ Storage  : IndexedDB + OPFS (offline) ⇄ data/files/ (C server, online)
 Delivery : Installable PWA (manifest.json + service-worker.js)
 ```
 
+**Live demo (GitHub Pages):** https://sufiyan-sabeel.github.io/LumeOS-web/
+— the frontend-only build. It runs entirely offline from OPFS + the
+service worker, so the C backend is not required (the tray will read
+"offline", which is expected there).
+
 ---
 
 ## Quick start
@@ -72,6 +77,16 @@ cd frontend && npx tsc -p tsconfig.json      # emits to ../build/web
 
 Run the C tests directly with `./build/lume-tests`, and the backend
 integration suite with `python3 tests/integration_test.py`.
+
+There are four suites in total:
+
+| Suite | Command | Covers |
+|-------|---------|--------|
+| C unit | `./build/lume-tests` | hashing, string/JSON/URL helpers, path-traversal rejection, token auth |
+| Backend integration | `python3 tests/integration_test.py` | live server: CRUD, auth gating, traversal, packages, source export |
+| Archive reader | `make test-zip` | `.lume` ZIP extraction against real `zip` output (STORE + DEFLATE) |
+| Static site E2E | `make test-e2e` | headless Chromium: boot from a subpath, App Store catalog, install, offline launch |
+
 
 ---
 
@@ -224,6 +239,68 @@ See `docs/ARCHITECTURE.md` for the full design and `docs/PRD-ANALYSIS.md` for
 the requirements traceability matrix.
 
 ---
+
+## Deployment
+
+### GitHub Pages (static, frontend-only)
+
+```bash
+make pages          # -> build/pages/
+```
+
+Publish the contents of `build/pages/` to a `gh-pages` branch (or any static
+host). The live demo above is exactly this build.
+
+Because Pages serves static files only, the C backend cannot run there — and it
+does not need to. The PWA is designed to work offline: the kernel falls back to
+OPFS, the service worker serves the shell and any installed apps, and the App
+Store reads the **static** `packages/index.json` catalog. Everything is
+base-path aware, so the same build works at the domain root (behind the C
+server) and under a subpath such as `/LumeOS-web/`.
+
+### GitHub Releases
+
+```bash
+make release-assets   # -> build/release/
+```
+
+Produces the source archive plus the published `.lume` packages, which are
+attached to each tagged release.
+
+## Packages
+
+LumeOS packages are distributed two ways, and the App Store understands both.
+
+**1. Directory bundle** — a folder in `packages/` with `manifest.lume.json` and
+its assets. Listed by `GET /api/packages`.
+
+**2. `.lume` archive** — a standard ZIP containing `manifest.lume.json` at the
+root. Built with `make release-assets`, published as a release asset, and
+listed in the static catalog `packages/index.json`:
+
+```json
+{
+  "id": "hello-canvas",
+  "name": "Hello Canvas",
+  "glyph": "🎨",
+  "type": "web",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "path": "hello-canvas",
+  "archive": "hello-canvas.lume",
+  "checksums": { "hello-canvas.lume": "<sha256>" }
+}
+```
+
+The App Store downloads the archive, **verifies its SHA-256** against the
+catalog, and extracts it entirely client-side with `storage/zip.ts` — a
+dependency-free ZIP reader built on the browser's native
+`DecompressionStream('deflate-raw')`. Files land in OPFS under `/<id>/`, the app
+is registered, and an icon appears on the desktop with no reload.
+
+Package types: `web` (runs in a sandboxed iframe), `ai-model` (weights into
+`OPFS/models/`), and `native` (host-OS detection + installer or runtime
+bridge).
 
 ## License
 

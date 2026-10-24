@@ -7,7 +7,9 @@
 
 import type { LumeApp, AppContext } from '../../desktop/types.js';
 import { downloads } from '../../desktop/downloads.js';
+import { appUrl } from '../../desktop/base.js';
 import { opfs } from '../../storage/opfs.js';
+import { unzip, normalizeEntryName } from '../../storage/zip.js';
 
 interface LumePackageManifest {
   id: string;
@@ -22,6 +24,8 @@ interface LumePackageManifest {
   size?: number;
   runtime?: string;
   installers?: Record<string, string>;
+  /** Optional published `.lume` archive (a standard zip) in packages/. */
+  archive?: string;
 }
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
@@ -73,22 +77,32 @@ export const appStoreApp: LumeApp = {
 
     let catalog: LumePackageManifest[] = [];
 
-    const pkgBase = (name: string): string => `/packages/${name}`;
+    /* Base-aware so the repository works from the root (C backend) or a
+     * subpath (static GitHub Pages deployment). */
+    const pkgBase = (name: string): string => appUrl(`packages/${name}`);
 
     const loadCatalog = async (): Promise<void> => {
       content.innerHTML = '';
-      if (!ctx.kernel.isServerOnline()) {
-        content.appendChild(
-          el('p', 'muted', 'The C backend is offline — the package repository is unavailable.')
-        );
-        status.textContent = 'offline';
-        return;
-      }
+      catalog = [];
+
+      /* 1) Static catalog — works with the C backend AND with a purely
+       *    static deployment (GitHub Pages), where there is no /api. */
       try {
-        const packages = await ctx.kernel.api.listPackages();
-        catalog = [];
-        for (const p of packages) {
-          if (p.kind === 'bundle') {
+        const res = await fetch(appUrl('packages/index.json'), { cache: 'no-cache' });
+        if (res.ok) {
+          const idx = (await res.json()) as { packages?: LumePackageManifest[] };
+          if (Array.isArray(idx.packages)) catalog = idx.packages;
+        }
+      } catch {
+        /* ignore and try the live listing */
+      }
+
+      /* 2) Fall back to the live backend repository listing. */
+      if (catalog.length === 0 && ctx.kernel.isServerOnline()) {
+        try {
+          const packages = await ctx.kernel.api.listPackages();
+          for (const p of packages) {
+            if (p.kind !== 'bundle') continue;
             try {
               const res = await fetch(`${pkgBase(p.name)}/manifest.lume.json`);
               if (res.ok) catalog.push((await res.json()) as LumePackageManifest);
@@ -96,12 +110,22 @@ export const appStoreApp: LumeApp = {
               /* skip malformed package */
             }
           }
+        } catch {
+          /* ignore */
         }
-        render();
-        status.textContent = `${catalog.length} package(s) in repository`;
-      } catch (e) {
-        content.appendChild(el('p', 'muted', `Failed to load catalog: ${(e as Error).message}`));
       }
+
+      if (catalog.length === 0) {
+        content.appendChild(
+          el('p', 'muted', 'No package repository available. Start the C backend or deploy the packages/ folder.')
+        );
+        status.textContent = 'repository unavailable';
+        return;
+      }
+      render();
+      status.textContent =
+        `${catalog.length} package(s) · ` +
+        (ctx.kernel.isServerOnline() ? 'server online' : 'offline (static repository)');
     };
 
     const render = (): void => {
@@ -175,23 +199,44 @@ export const appStoreApp: LumeApp = {
           return;
         }
 
-        const files = pkg.files ?? ['index.html'];
-        const urls = files.map((f) => `${pkgBase(pkg.id)}/${f}`);
+        const root = pkg.type === 'web' ? `/${pkg.id}` : `/models/${pkg.id}`;
 
-        await downloads.start(pkg.name, pkg.type, urls, async (url, blob) => {
-          const rel = url.slice(pkgBase(pkg.id).length + 1);
-          const dest = pkg.type === 'web' ? `/${pkg.id}/${rel}` : `/models/${pkg.id}/${rel}`;
-
-          /* Verify integrity when a checksum is declared. */
-          const expected = pkg.checksums?.[rel];
-          if (expected) {
-            const actual = await sha256Hex(await blob.arrayBuffer());
-            if (actual !== expected) {
-              throw new Error(`checksum mismatch for ${rel}`);
+        if (pkg.archive) {
+          /* Published .lume archive: a single download, extracted in-browser
+           * with the native DecompressionStream (see storage/zip.ts). */
+          const url = appUrl(`packages/${pkg.archive}`);
+          await downloads.start(pkg.name, pkg.type, [url], async (_u, blob) => {
+            const buffer = await blob.arrayBuffer();
+            const expected = pkg.checksums?.[pkg.archive as string];
+            if (expected) {
+              const actual = await sha256Hex(buffer.slice(0));
+              if (actual !== expected) throw new Error('archive checksum mismatch');
             }
-          }
-          await opfs.writeBlob(dest, blob);
-        });
+            const entries = await unzip(buffer);
+            if (entries.length === 0) throw new Error('archive contained no files');
+            for (const e of entries) {
+              const rel = normalizeEntryName(e.name);
+              if (!rel || rel === 'manifest.lume.json') continue;
+              await opfs.writeBlob(`${root}/${rel}`, new Blob([e.bytes as BlobPart]));
+            }
+          });
+        } else {
+          /* Directory bundle: one download per declared file. */
+          const files = pkg.files ?? ['index.html'];
+          const urls = files.map((f) => `${pkgBase(pkg.id)}/${f}`);
+          await downloads.start(pkg.name, pkg.type, urls, async (url, blob) => {
+            const rel = url.slice(pkgBase(pkg.id).length + 1);
+            /* Verify integrity when a checksum is declared. */
+            const expected = pkg.checksums?.[rel];
+            if (expected) {
+              const actual = await sha256Hex(await blob.arrayBuffer());
+              if (actual !== expected) {
+                throw new Error(`checksum mismatch for ${rel}`);
+              }
+            }
+            await opfs.writeBlob(`${root}/${rel}`, blob);
+          });
+        }
 
         if (pkg.type === 'web') {
           const info = {

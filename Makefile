@@ -23,9 +23,15 @@ CORE_SRC    := $(ENGINE_SRC) $(BACKEND_SRC)
 SERVER_BIN  := build/lume-server
 TEST_BIN    := build/lume-tests
 
+# Static deployment (GitHub Pages) and release packaging
+SITE_DIR    := build/pages
+PAGES_BASE  ?= /LumeOS-web
+RELEASE_DIR := build/release
+PAYLOAD_PKGS := hello-canvas markdown-studio tiny-ai
+
 CFLAGS += -Iengine -Ibackend/include
 
-.PHONY: all backend frontend run test clean package-source deps help
+.PHONY: all backend frontend run test test-zip test-e2e clean package-source pages release-assets deps help
 
 all: backend frontend
 
@@ -84,6 +90,37 @@ package-source:
 	@echo "  -> build/lumeos-source.tar.gz"
 
 # ---------------------------------------------------------------------
+# Static site (GitHub Pages) and release assets
+# ---------------------------------------------------------------------
+# The site is a frontend-only build: the PWA runs entirely from OPFS and the
+# service worker, so it needs no C backend. Serve it at a SUBPATH (Pages
+# project sites live at /<repo>/) — every runtime URL is base-aware.
+pages: all package-source
+	@rm -rf $(SITE_DIR)
+	@mkdir -p $(SITE_DIR)
+	@cp -r $(WEBROOT)/. $(SITE_DIR)/
+	@cp -r packages $(SITE_DIR)/
+	@cp build/lumeos-source.tar.gz $(SITE_DIR)/
+	@echo "  -> static site ready in $(SITE_DIR) (serve at $(PAGES_BASE)/)"
+
+release-assets: package-source
+	@mkdir -p $(RELEASE_DIR)
+	@cp build/lumeos-source.tar.gz $(RELEASE_DIR)/
+	@for p in $(PAYLOAD_PKGS); do \
+	    (cd packages/$$p && zip -r -X -q ../$$p.lume .) ; \
+	    cp packages/$$p.lume $(RELEASE_DIR)/ ; \
+	done
+	@echo "  -> release assets in $(RELEASE_DIR)/"
+	@ls -1 $(RELEASE_DIR)/
+
+test-zip: frontend
+	@cp $(WEBROOT)/storage/zip.js /tmp/lume-zip.mjs
+	node tests/zip_test.mjs /tmp/lume-zip.mjs
+
+test-e2e: pages
+	python3 tests/pages_e2e.py
+
+# ---------------------------------------------------------------------
 # Housekeeping
 # ---------------------------------------------------------------------
 clean:
@@ -92,10 +129,14 @@ clean:
 
 help:
 	@echo "LumeOS-web build targets:"
-	@echo "  make / all        build backend and frontend"
-	@echo "  make backend      build the C server only"
-	@echo "  make frontend     compile TypeScript into $(WEBROOT)"
-	@echo "  make run          build and start the server (PORT=$(PORT))"
-	@echo "  make test         run C unit tests"
-	@echo "  make package-source  create build/lumeos-source.tar.gz"
-	@echo "  make clean        remove build artifacts"
+	@echo "  make / all          build backend and frontend"
+	@echo "  make backend        build the C server only"
+	@echo "  make frontend       compile TypeScript into $(WEBROOT)"
+	@echo "  make run            build and start the server (PORT=$(PORT))"
+	@echo "  make test           run C unit tests"
+	@echo "  make test-zip       test the .lume archive reader"
+	@echo "  make test-e2e       browser end-to-end test of the static build"
+	@echo "  make package-source create build/lumeos-source.tar.gz"
+	@echo "  make pages          build the static GitHub Pages site"
+	@echo "  make release-assets build .lume archives + source tarball"
+	@echo "  make clean          remove build artifacts"
