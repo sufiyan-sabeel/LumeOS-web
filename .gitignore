@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+*.o
+*.obj
+*.exe
+lume-server
+lume-tests
+
+# TypeScript compiler output that lands beside sources (make clean removes these)
+frontend/**/*.js
+frontend/**/*.js.map
+!frontend/service-worker.js
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Runtime state
+data/exports/
+data/logs/*.log
+data/files/*
+!data/files/.gitkeep
+data/models/*
+!data/models/.gitkeep
+data/database/*.txt
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
