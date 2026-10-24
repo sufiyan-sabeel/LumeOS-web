@@ -1,0 +1,228 @@
+/* =====================================================================
+   LumeOS - base.css
+   Design tokens, resets, boot splash and shared primitives.
+   ===================================================================== */
+
+:root {
+  /* palette */
+  --lume-bg-0: #0b0f1a;
+  --lume-bg-1: #111726;
+  --lume-bg-2: #171f33;
+  --lume-surface: rgba(24, 32, 51, 0.72);
+  --lume-surface-solid: #1b2438;
+  --lume-border: rgba(255, 255, 255, 0.10);
+  --lume-border-strong: rgba(255, 255, 255, 0.20);
+
+  --lume-text: #e8edf7;
+  --lume-text-dim: #9aa6bf;
+  --lume-text-muted: #6b7893;
+
+  --lume-accent: #6ea8fe;
+  --lume-accent-2: #a06bff;
+  --lume-accent-soft: rgba(110, 168, 254, 0.16);
+  --lume-success: #4ade80;
+  --lume-warn: #fbbf24;
+  --lume-danger: #f87171;
+
+  /* metrics */
+  --lume-radius: 12px;
+  --lume-radius-sm: 8px;
+  --lume-gap: 12px;
+  --lume-taskbar-h: 52px;
+  --lume-blur: 18px;
+
+  --lume-shadow-window: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --lume-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  --lume-font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue",
+    Roboto, "Noto Sans", Arial, sans-serif;
+  --lume-mono: "JetBrains Mono", "SFMono-Regular", Consolas,
+    "Liberation Mono", Menlo, monospace;
+
+  --lume-anim: 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* wallpaper (overridden by the theme engine) */
+  --lume-wallpaper: radial-gradient(1200px 800px at 20% 10%, #1b2a4a 0%, transparent 60%),
+                    radial-gradient(1000px 700px at 85% 90%, #2a1b4a 0%, transparent 55%),
+                    linear-gradient(160deg, #0b0f1a 0%, #0e1422 100%);
+}
+
+[data-theme="light"] {
+  --lume-bg-0: #eef1f7;
+  --lume-bg-1: #e4e9f2;
+  --lume-bg-2: #ffffff;
+  --lume-surface: rgba(255, 255, 255, 0.78);
+  --lume-surface-solid: #ffffff;
+  --lume-border: rgba(16, 24, 40, 0.10);
+  --lume-border-strong: rgba(16, 24, 40, 0.20);
+  --lume-text: #101828;
+  --lume-text-dim: #475467;
+  --lume-text-muted: #98a2b3;
+  --lume-wallpaper: radial-gradient(1200px 800px at 20% 10%, #dbe7ff 0%, transparent 60%),
+                    radial-gradient(1000px 700px at 85% 90%, #ecdcff 0%, transparent 55%),
+                    linear-gradient(160deg, #f4f7fd 0%, #e8eefb 100%);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--lume-bg-0);
+  color: var(--lume-text);
+  font-family: var(--lume-font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+button, input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid var(--lume-border);
+  background: var(--lume-surface);
+  border-radius: var(--lume-radius-sm);
+  padding: 8px 14px;
+  transition: background var(--lume-anim), border-color var(--lume-anim),
+    transform var(--lume-anim);
+}
+button:hover { background: var(--lume-accent-soft); border-color: var(--lume-border-strong); }
+button:active { transform: translateY(1px); }
+button.primary {
+  background: linear-gradient(135deg, var(--lume-accent), var(--lume-accent-2));
+  border-color: transparent;
+  color: #0b0f1a;
+  font-weight: 600;
+}
+button.ghost { background: transparent; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input, textarea {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--lume-border);
+  border-radius: var(--lume-radius-sm);
+  padding: 8px 10px;
+  outline: none;
+  user-select: text;
+}
+input:focus, textarea:focus { border-color: var(--lume-accent); }
+[data-theme="light"] input,
+[data-theme="light"] textarea { background: rgba(0, 0, 0, 0.04); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------------------------------------------------------------------
+   Boot splash
+   --------------------------------------------------------------------- */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--lume-wallpaper);
+  z-index: 100000;
+  transition: opacity 320ms ease;
+}
+.boot.hidden { opacity: 0; pointer-events: none; }
+.boot__title { font-size: 26px; font-weight: 700; letter-spacing: 0.5px; margin: 0; }
+.boot__status { color: var(--lume-text-dim); margin: 0; font-size: 13px; }
+.boot__bar {
+  width: 220px; height: 4px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12); overflow: hidden;
+}
+.boot__bar span {
+  display: block; height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--lume-accent), var(--lume-accent-2));
+  transition: width 240ms ease;
+}
+
+/* ---------------------------------------------------------------------
+   Toasts
+   --------------------------------------------------------------------- */
+.toast-layer {
+  position: fixed;
+  right: 16px;
+  bottom: calc(var(--lume-taskbar-h) + 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 90000;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 360px;
+  padding: 12px 14px;
+  border-radius: var(--lume-radius);
+  background: var(--lume-surface);
+  border: 1px solid var(--lume-border);
+  backdrop-filter: blur(var(--lume-blur));
+  box-shadow: var(--lume-shadow-soft);
+  animation: toast-in 200ms ease;
+}
+.toast--error { border-color: var(--lume-danger); }
+.toast--success { border-color: var(--lume-success); }
+.toast__title { font-weight: 600; margin-bottom: 3px; }
+.toast__body { color: var(--lume-text-dim); font-size: 13px; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------------------------------------------------------------
+   Modal
+   --------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 14, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80000;
+}
+.modal {
+  width: min(460px, 92vw);
+  background: var(--lume-surface-solid);
+  border: 1px solid var(--lume-border);
+  border-radius: var(--lume-radius);
+  box-shadow: var(--lume-shadow-window);
+  padding: 18px;
+}
+.modal h2 { margin: 0 0 10px; font-size: 16px; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* utility */
+.muted { color: var(--lume-text-muted); }
+.dim { color: var(--lume-text-dim); }
+.row { display: flex; gap: 8px; align-items: center; }
+.spacer { flex: 1; }
+.mono { font-family: var(--lume-mono); }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--lume-border);
+  color: var(--lume-text-dim);
+}
+.badge--ok { color: var(--lume-success); border-color: rgba(74, 222, 128, 0.4); }
+.badge--warn { color: var(--lume-warn); border-color: rgba(251, 191, 36, 0.4); }
+.badge--off { color: var(--lume-text-muted); }
