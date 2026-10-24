@@ -1,0 +1,4 @@
+# LumeOS native execution allowlist.
+# One binary basename per line. A binary named here may be launched by
+# POST /api/system/exec-native, provided it also exists at
+# data/database/native/<name>. Empty by default (deny-all).
