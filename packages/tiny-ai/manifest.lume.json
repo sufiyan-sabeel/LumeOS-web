@@ -1,0 +1,11 @@
+{
+  "id": "tiny-ai",
+  "name": "Tiny Offline Model",
+  "glyph": "🧠",
+  "type": "ai-model",
+  "version": "0.3.0",
+  "description": "A tiny quantised model package (manifest + weights placeholder) for offline use.",
+  "runtime": "wasm",
+  "fallback": "rules",
+  "files": ["model.json", "labels.json"]
+}

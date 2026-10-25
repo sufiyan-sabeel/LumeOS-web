@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="LumeOS - a lightweight hybrid web-desktop operating system." />
+  <title>LumeOS</title>
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
+  <link rel="apple-touch-icon" href="./assets/icon.svg" />
+
+  <link rel="stylesheet" href="./styles/base.css" />
+  <link rel="stylesheet" href="./styles/desktop.css" />
+  <link rel="stylesheet" href="./styles/mobile.css" />
+  <link rel="stylesheet" href="./styles/apps.css" />
+</head>
+<body>
+  <!-- Boot splash: replaced once the kernel mounts the shell -->
+  <div id="lume-boot" class="boot">
+    <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+      <defs>
+        <linearGradient id="boot-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5b8def" />
+          <stop offset="1" stop-color="#8f6be0" />
+        </linearGradient>
+      </defs>
+      <rect x="4" y="4" width="56" height="56" rx="15" fill="url(#boot-grad)" opacity="0.16" />
+      <path d="M23 17v24h19v-6H29V17z" fill="url(#boot-grad)" />
+    </svg>
+    <h1 class="boot__title">LumeOS</h1>
+    <p class="boot__status" id="boot-status">Starting kernel…</p>
+    <div class="boot__bar" role="progressbar" aria-label="Startup progress">
+      <span id="boot-bar"></span>
+    </div>
+  </div>
+
+  <!-- Shell: populated by the kernel -->
+  <div id="lume-shell" class="shell" hidden>
+    <header id="statusbar" class="statusbar" aria-label="System status"></header>
+
+    <div class="workspace">
+      <div id="wallpaper" class="wallpaper"></div>
+      <main id="desktop-icons" class="icons" aria-label="Desktop shortcuts"></main>
+      <section id="mobile-home" class="mobile-home" aria-label="Home screen" hidden></section>
+      <section id="window-layer" class="window-layer" aria-label="Open windows"></section>
+      <section id="app-layer" class="app-layer" aria-label="Open applications"></section>
+      <div id="launcher" class="launcher" role="dialog" aria-modal="true"
+           aria-label="Application launcher" hidden></div>
+    </div>
+
+    <footer id="dock" class="dock" aria-label="Dock"></footer>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation"></nav>
+  </div>
+
+  <div id="toast-layer" class="toast-layer" aria-live="polite"></div>
+
+  <script type="module" src="./desktop/kernel.js"></script>
+  <noscript>
+    <p style="color:#e7e8ec;font-family:system-ui,sans-serif;padding:2rem">
+      LumeOS requires JavaScript and ES modules.
+    </p>
+  </noscript>
+</body>
+</html>

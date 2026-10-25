@@ -1,0 +1,14 @@
+{
+  "id": "hello-canvas",
+  "name": "Hello Canvas",
+  "glyph": "🎨",
+  "type": "web",
+  "version": "1.0.0",
+  "description": "A tiny animated canvas demo that runs fully offline inside LumeOS.",
+  "entry": "index.html",
+  "files": [
+    "index.html",
+    "app.js",
+    "lume-bridge.js"
+  ]
+}

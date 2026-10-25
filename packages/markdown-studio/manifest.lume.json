@@ -1,0 +1,10 @@
+{
+  "id": "markdown-studio",
+  "name": "Markdown Studio",
+  "glyph": "📘",
+  "type": "web",
+  "version": "1.0.1",
+  "description": "Live Markdown editor with instant preview, running offline.",
+  "entry": "index.html",
+  "files": ["index.html", "app.js", "lume-bridge.js"]
+}

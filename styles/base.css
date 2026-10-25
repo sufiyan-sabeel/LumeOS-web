@@ -1,0 +1,446 @@
+/* =====================================================================
+   LumeOS - base.css
+   Design tokens, reset, primitives, boot splash, toasts, modals.
+
+   Palette: AMOLED black, charcoal and graphite surfaces, muted silver
+   text, one restrained blue accent with a warm secondary.
+   ===================================================================== */
+
+:root {
+  /* ---- surfaces (AMOLED-leaning) ---- */
+  --lume-black: #000000;
+  --lume-bg: #000000;
+  --lume-s1: #08080a;
+  --lume-s2: #101013;
+  --lume-s3: #17171b;
+  --lume-s4: #1f1f24;
+  --lume-scrim: rgba(0, 0, 0, 0.62);
+
+  /* ---- lines & depth ---- */
+  --lume-line: rgba(255, 255, 255, 0.075);
+  --lume-line-2: rgba(255, 255, 255, 0.13);
+  --lume-line-3: rgba(255, 255, 255, 0.22);
+  --lume-hair: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --lume-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --lume-shadow-md: 0 8px 24px -6px rgba(0, 0, 0, 0.7);
+  --lume-shadow-lg: 0 28px 64px -12px rgba(0, 0, 0, 0.85);
+
+  /* ---- text ---- */
+  --lume-text: #e7e8ec;
+  --lume-text-2: #a2a4ac;
+  --lume-text-3: #6d6f78;
+  --lume-text-inv: #0a0a0c;
+
+  /* ---- accents ---- */
+  --lume-accent: #5b8def;
+  --lume-accent-hi: #7aa5f5;
+  --lume-accent-dim: rgba(91, 141, 239, 0.14);
+  --lume-accent-line: rgba(91, 141, 239, 0.42);
+  --lume-warm: #d9a066;
+  --lume-ok: #3fb950;
+  --lume-warn: #d29922;
+  --lume-danger: #f85149;
+  --lume-ok-dim: rgba(63, 185, 80, 0.14);
+  --lume-warn-dim: rgba(210, 153, 34, 0.14);
+  --lume-danger-dim: rgba(248, 81, 73, 0.14);
+
+  /* ---- type ---- */
+  --lume-font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+  --lume-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", "Cascadia Mono",
+    Consolas, "Liberation Mono", Menlo, monospace;
+  --lume-fs-xs: 11px;
+  --lume-fs-sm: 12.5px;
+  --lume-fs-md: 13.5px;
+  --lume-fs-lg: 15px;
+  --lume-fs-xl: 19px;
+  --lume-fs-2xl: 24px;
+
+  /* ---- space & shape ---- */
+  --lume-sp-1: 4px;
+  --lume-sp-2: 8px;
+  --lume-sp-3: 12px;
+  --lume-sp-4: 16px;
+  --lume-sp-5: 20px;
+  --lume-sp-6: 24px;
+  --lume-sp-8: 32px;
+  --lume-r-sm: 6px;
+  --lume-r-md: 9px;
+  --lume-r-lg: 13px;
+  --lume-r-xl: 18px;
+
+  /* ---- metrics ---- */
+  --lume-statusbar-h: 30px;
+  --lume-taskbar-h: 52px;
+  --lume-dock-h: 60px;
+  --lume-touch: 44px;
+
+  /* ---- motion ---- */
+  --lume-dur-1: 110ms;
+  --lume-dur-2: 170ms;
+  --lume-dur-3: 240ms;
+  --lume-ease: cubic-bezier(0.2, 0.7, 0.25, 1);
+
+  /* ---- wallpaper (overridden by the theme engine) ---- */
+  --lume-wallpaper: radial-gradient(1100px 720px at 18% 8%, #14213d 0%, transparent 58%),
+    radial-gradient(900px 640px at 84% 92%, #2a1d3d 0%, transparent 52%),
+    linear-gradient(168deg, #05060a 0%, #0a0b10 100%);
+}
+
+[data-theme='light'] {
+  --lume-black: #ffffff;
+  --lume-bg: #eef0f4;
+  --lume-s1: #f7f8fa;
+  --lume-s2: #ffffff;
+  --lume-s3: #f2f4f8;
+  --lume-s4: #e8ebf1;
+  --lume-scrim: rgba(20, 24, 33, 0.38);
+  --lume-line: rgba(15, 22, 36, 0.09);
+  --lume-line-2: rgba(15, 22, 36, 0.16);
+  --lume-line-3: rgba(15, 22, 36, 0.26);
+  --lume-hair: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --lume-shadow-sm: 0 1px 2px rgba(15, 22, 36, 0.08);
+  --lume-shadow-md: 0 8px 24px -8px rgba(15, 22, 36, 0.22);
+  --lume-shadow-lg: 0 28px 60px -14px rgba(15, 22, 36, 0.3);
+  --lume-text: #14181f;
+  --lume-text-2: #4a5262;
+  --lume-text-3: #7d8798;
+  --lume-text-inv: #ffffff;
+  --lume-accent: #2f6fe0;
+  --lume-accent-hi: #1d5fd0;
+  --lume-accent-dim: rgba(47, 111, 224, 0.12);
+  --lume-accent-line: rgba(47, 111, 224, 0.4);
+  --lume-wallpaper: radial-gradient(1100px 720px at 18% 8%, #dbe6fb 0%, transparent 58%),
+    radial-gradient(900px 640px at 84% 92%, #ece2fb 0%, transparent 52%),
+    linear-gradient(168deg, #f2f5fb 0%, #e6ebf6 100%);
+}
+
+/* =====================================================================
+   Reset
+   ===================================================================== */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--lume-bg);
+  color: var(--lume-text);
+  font-family: var(--lume-font);
+  font-size: var(--lume-fs-md);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior: none;
+}
+
+/* The shell chrome is not text; applications are. */
+body { user-select: none; }
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lume-sp-2);
+  min-height: 34px;
+  padding: 0 var(--lume-sp-3);
+  border: 1px solid var(--lume-line-2);
+  border-radius: var(--lume-r-sm);
+  background: var(--lume-s3);
+  color: var(--lume-text);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--lume-dur-1) var(--lume-ease),
+    border-color var(--lume-dur-1) var(--lume-ease),
+    color var(--lume-dur-1) var(--lume-ease);
+}
+button:hover:not(:disabled) { background: var(--lume-s4); border-color: var(--lume-line-3); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary {
+  background: var(--lume-accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { background: var(--lume-accent-hi); }
+button.ghost { background: transparent; border-color: transparent; }
+button.ghost:hover:not(:disabled) { background: var(--lume-s3); border-color: var(--lume-line); }
+button.danger { color: var(--lume-danger); border-color: var(--lume-danger-dim); }
+button.danger:hover:not(:disabled) { background: var(--lume-danger-dim); }
+button.icon-btn {
+  width: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--lume-text-2);
+}
+button.icon-btn:hover:not(:disabled) { background: var(--lume-s3); color: var(--lume-text); }
+
+input, textarea, select {
+  min-height: 34px;
+  padding: 0 var(--lume-sp-3);
+  background: var(--lume-s1);
+  border: 1px solid var(--lume-line-2);
+  border-radius: var(--lume-r-sm);
+  color: var(--lume-text);
+  user-select: text;
+  transition: border-color var(--lume-dur-1) var(--lume-ease),
+    box-shadow var(--lume-dur-1) var(--lume-ease);
+}
+textarea { padding: var(--lume-sp-3); line-height: 1.6; }
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+  border-color: var(--lume-accent-line);
+  box-shadow: 0 0 0 3px var(--lume-accent-dim);
+}
+::placeholder { color: var(--lume-text-3); }
+
+/* Visible keyboard focus everywhere, without showing it on mouse clicks. */
+:focus-visible {
+  outline: 2px solid var(--lume-accent);
+  outline-offset: 2px;
+}
+
+.lume-icon { flex: none; display: block; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--lume-line-2);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background-clip: content-box; background-color: var(--lume-line-3); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* =====================================================================
+   Utilities
+   ===================================================================== */
+.row { display: flex; align-items: center; gap: var(--lume-sp-2); }
+.col { display: flex; flex-direction: column; }
+.spacer { flex: 1 1 auto; }
+.muted { color: var(--lume-text-3); }
+.dim { color: var(--lume-text-2); }
+.mono { font-family: var(--lume-mono); }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hidden { display: none !important; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: var(--lume-fs-xs);
+  line-height: 1.6;
+  border: 1px solid var(--lume-line-2);
+  color: var(--lume-text-2);
+  white-space: nowrap;
+}
+.badge--ok { color: var(--lume-ok); border-color: var(--lume-ok-dim); background: var(--lume-ok-dim); }
+.badge--warn { color: var(--lume-warn); border-color: var(--lume-warn-dim); background: var(--lume-warn-dim); }
+.badge--off { color: var(--lume-text-3); }
+.badge--danger { color: var(--lume-danger); border-color: var(--lume-danger-dim); background: var(--lume-danger-dim); }
+
+.card-surface {
+  background: var(--lume-s2);
+  border: 1px solid var(--lume-line);
+  border-radius: var(--lume-r-md);
+  box-shadow: var(--lume-hair);
+}
+
+/* Empty / loading / error states, used across applications. */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lume-sp-3);
+  padding: var(--lume-sp-8) var(--lume-sp-4);
+  text-align: center;
+  color: var(--lume-text-3);
+}
+.state__icon { color: var(--lume-text-3); opacity: 0.8; }
+.state__title { color: var(--lume-text-2); font-size: var(--lume-fs-md); font-weight: 600; }
+.state__body { font-size: var(--lume-fs-sm); max-width: 44ch; line-height: 1.6; }
+.state--error .state__icon { color: var(--lume-danger); opacity: 1; }
+.state--error .state__title { color: var(--lume-danger); }
+
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--lume-line-2);
+  border-top-color: var(--lume-accent);
+  border-radius: 50%;
+  animation: lume-spin 720ms linear infinite;
+}
+@keyframes lume-spin { to { transform: rotate(360deg); } }
+
+/* =====================================================================
+   Boot splash
+   ===================================================================== */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--lume-sp-4);
+  background: var(--lume-wallpaper);
+  z-index: 100000;
+  transition: opacity var(--lume-dur-3) var(--lume-ease);
+}
+.boot.hidden { opacity: 0; pointer-events: none; }
+.boot__title { margin: 0; font-size: var(--lume-fs-2xl); font-weight: 600; letter-spacing: -0.02em; }
+.boot__status { margin: 0; color: var(--lume-text-3); font-size: var(--lume-fs-sm); }
+.boot__bar {
+  width: 200px; height: 3px; border-radius: 99px;
+  background: var(--lume-line-2); overflow: hidden;
+}
+.boot__bar span {
+  display: block; height: 100%; width: 0%;
+  background: var(--lume-accent);
+  transition: width var(--lume-dur-3) var(--lume-ease);
+}
+
+/* =====================================================================
+   Toasts
+   ===================================================================== */
+.toast-layer {
+  position: fixed;
+  right: var(--lume-sp-4);
+  bottom: calc(var(--lume-dock-h) + var(--lume-sp-4));
+  display: flex;
+  flex-direction: column;
+  gap: var(--lume-sp-2);
+  z-index: 90000;
+  pointer-events: none;
+  max-width: min(360px, calc(100vw - 32px));
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  gap: var(--lume-sp-3);
+  align-items: flex-start;
+  padding: var(--lume-sp-3);
+  border-radius: var(--lume-r-md);
+  background: var(--lume-s3);
+  border: 1px solid var(--lume-line-2);
+  box-shadow: var(--lume-shadow-md);
+  animation: toast-in var(--lume-dur-2) var(--lume-ease);
+}
+.toast__icon { margin-top: 1px; }
+.toast--success .toast__icon { color: var(--lume-ok); }
+.toast--error .toast__icon { color: var(--lume-danger); }
+.toast--info .toast__icon { color: var(--lume-accent); }
+.toast__title { font-weight: 600; font-size: var(--lume-fs-sm); }
+.toast__body { color: var(--lume-text-2); font-size: var(--lume-fs-sm); word-break: break-word; }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* =====================================================================
+   Modals
+   ===================================================================== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--lume-sp-4);
+  background: var(--lume-scrim);
+  animation: fade-in var(--lume-dur-2) var(--lume-ease);
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.modal {
+  width: min(440px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: var(--lume-sp-5);
+  background: var(--lume-s2);
+  border: 1px solid var(--lume-line-2);
+  border-radius: var(--lume-r-lg);
+  box-shadow: var(--lume-shadow-lg);
+  animation: modal-in var(--lume-dur-2) var(--lume-ease);
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+.modal h2 { margin: 0 0 var(--lume-sp-2); font-size: var(--lume-fs-lg); font-weight: 600; }
+.modal p { margin: 0 0 var(--lume-sp-2); color: var(--lume-text-2); font-size: var(--lume-fs-sm); }
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--lume-sp-2);
+  margin-top: var(--lume-sp-5);
+}
+.modal__actions button { min-width: 88px; }
+
+/* =====================================================================
+   Context menu
+   ===================================================================== */
+.ctx-menu {
+  position: fixed;
+  z-index: 95000;
+  min-width: 180px;
+  padding: var(--lume-sp-1);
+  background: var(--lume-s3);
+  border: 1px solid var(--lume-line-2);
+  border-radius: var(--lume-r-md);
+  box-shadow: var(--lume-shadow-lg);
+  animation: fade-in var(--lume-dur-1) var(--lume-ease);
+}
+.ctx-menu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--lume-sp-3);
+  width: 100%;
+  min-height: 34px;
+  padding: 0 var(--lume-sp-3);
+  border: none;
+  border-radius: var(--lume-r-sm);
+  background: transparent;
+  color: var(--lume-text);
+  font-size: var(--lume-fs-sm);
+  justify-content: flex-start;
+  text-align: left;
+}
+.ctx-menu__item:hover:not(:disabled) { background: var(--lume-accent-dim); }
+.ctx-menu__item.danger { color: var(--lume-danger); }
+.ctx-menu__sep { height: 1px; margin: var(--lume-sp-1) 0; background: var(--lume-line); }
+
+/* =====================================================================
+   Reduced motion — respect the user's OS setting.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Explicit opt-in from Settings, independent of the OS setting. */
+[data-reduced-motion='true'] *,
+[data-reduced-motion='true'] *::before,
+[data-reduced-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
