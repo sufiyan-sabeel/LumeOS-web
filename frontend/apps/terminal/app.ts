@@ -9,7 +9,7 @@ export const terminalApp: LumeApp = {
   manifest: {
     id: 'terminal',
     name: 'Terminal',
-    glyph: '⌨️',
+    icon: 'terminal',
     description: 'Command-line interface to the LumeOS kernel and C engine.',
     category: 'developer',
     type: 'builtin',

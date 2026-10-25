@@ -9,7 +9,7 @@ export const calculatorApp: LumeApp = {
   manifest: {
     id: 'calculator',
     name: 'Calculator',
-    glyph: '🧮',
+    icon: 'calculator',
     description: 'Scientific and programmer calculator.',
     category: 'utility',
     type: 'builtin',

@@ -55,7 +55,7 @@ export const appStoreApp: LumeApp = {
   manifest: {
     id: 'app-store',
     name: 'App Store',
-    glyph: '🛍️',
+    icon: 'store',
     description: 'Install web apps, offline AI models and native packages.',
     category: 'system',
     type: 'builtin',

@@ -86,6 +86,7 @@ There are four suites in total:
 | Backend integration | `python3 tests/integration_test.py` | live server: CRUD, auth gating, traversal, packages, source export |
 | Archive reader | `make test-zip` | `.lume` ZIP extraction against real `zip` output (STORE + DEFLATE) |
 | Static site E2E | `make test-e2e` | headless Chromium: boot from a subpath, App Store catalog, install, offline launch |
+| Responsive / interaction | `python3 tests/responsive_e2e.py` | all six viewports, desktop + mobile shells, window controls, keyboard management, panels, persistence, breakpoint switching |
 
 
 ---
@@ -137,21 +138,62 @@ All file routes are canonicalised through `realpath` and confined to
 
 ---
 
+## The shell
+
+LumeOS ships two deliberately designed shells and switches between them
+automatically at 820px (or on request in **Settings → Layout**).
+
+**Desktop** — a top status bar (clock, backend state, storage, notifications,
+quick settings), a desktop icon grid, a dock with a launcher and running-app
+indicators, a searchable application launcher, a notification centre with quick
+settings, and context menus on the desktop, icons and dock items.
+
+**Mobile** — a home screen with a clock and app grid, full-screen app views with
+a back action, a bottom navigation bar within thumb reach, and a recents sheet.
+Touch targets are at least 44×44 CSS pixels, safe-area insets are respected,
+and the layout is verified from 320px up in both orientations.
+
+Switching between them **moves the live application elements** between the
+desktop and app layers, so an app keeps its state and DOM across the change.
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl`/`Cmd` + `Space` | Open the application launcher |
+| `Alt` + arrows | Move the focused window |
+| `Alt` + `Shift` + arrows | Resize the focused window |
+| `Alt` + `W` | Maximise / restore |
+| `Alt` + `M` | Minimise |
+| `Alt` + `Q` | Close the focused window |
+| `Alt` + `Tab` | Cycle windows |
+| `Escape` | Close the launcher, panel, menu or recents |
+| `Ctrl`/`Cmd` + `S` | Save (Notes, where applicable) |
+
+### Interface icons
+
+Interface icons are inline, stroke-based SVGs (`frontend/components/icons.ts`)
+that inherit `currentColor`. Emoji are not used for UI icons — they render
+inconsistently across platforms and cannot be styled or aligned reliably. They
+are still accepted as a fallback for third-party packages that supply one.
+
 ## Applications
 
 | App | What it does |
 |-----|--------------|
-| **Files** | Dual-pane explorer: server `data/files/` ⇄ offline OPFS, with "Download LumeOS Source" |
-| **Terminal** | Shell over the VFS (`ls`, `cat`, `mkdir`, `write`, `rm`, `cd`, `sysinfo`, `pkgs`, `open`, …) |
-| **Notes** | Markdown/text editor persisted through the VFS |
-| **Calculator** | Scientific/programmer calculator |
-| **Settings** | Theme engine, backend connection, storage inspector, source export |
+| **Files** | Dual-source explorer: the C backend's `data/files/` volume and the offline OPFS volume. Create, rename, delete, open in Notes. Single-pane with a segmented control on mobile. |
+| **Terminal** | Shell over the VFS: `ls`, `cat`, `mkdir`, `touch`, `write`, `rm`, `cd`, `sysinfo`, `pkgs`, `open`, `theme`, `help` |
+| **Notes** | Real note management: create, open, rename, delete and autosave, persisted through the VFS |
+| **Calculator** | Arithmetic with keyboard input, history and safe expression parsing |
+| **Settings** | Theme, accent, wallpaper, reduced motion, shell layout, backend connection, storage usage, source download, reset |
 | **App Store** | Installs Web / AI-model / Native packages from `packages/` |
-| **Downloads** | Live download queue with progress, pause, cancel |
-| **AI Center** | WebGPU/SIMD/threads capability scan + offline micro-model chat |
-| **Browser** | Renders local VFS documents and external URLs in a sandboxed frame |
+| **Downloads** | Live queue with real progress, pause and cancel |
+| **AI Center** | WebGPU / WASM SIMD / threads capability scan, downloaded-model list, offline chat |
+| **Browser** | Local VFS documents via blob URLs and external pages where embedding is permitted |
 
----
+Every visible control performs its advertised action or is disabled with a
+reason. Failures surface as real error states — the Files app, for example,
+shows why the server volume is unavailable instead of inventing contents.
 
 ## Installable web apps
 
@@ -196,9 +238,9 @@ Sample packages shipped: `hello-canvas`, `markdown-studio` (web),
 LumeOS-web/
 ├── frontend/          Vanilla TypeScript desktop client
 │   ├── index.html     bootloader + desktop shell
-│   ├── styles/        CSS3 design tokens, desktop, apps
-│   ├── components/    Window, Toast, Modal
-│   ├── desktop/       kernel, window manager, desktop, state, events, downloads
+│   ├── styles/        design tokens, desktop, mobile, apps
+│   ├── components/    Window, Toast, Modal, SVG icon set
+│   ├── desktop/       kernel, window manager, desktop, mobile, state, events, downloads
 │   ├── apps/          the nine built-in applications + registry
 │   ├── storage/       IndexedDB, OPFS, VFS, API client
 │   ├── workers/       hash worker, AI worker
@@ -214,7 +256,7 @@ LumeOS-web/
 ├── engine/            core.c / core.h — logging, SHA-256, CRC32, JSON, VFS utils
 ├── data/              persistent state (files, database, models, logs)
 ├── packages/          downloadable .lume package repository
-├── tests/             C unit tests + Python integration suite
+├── tests/             C unit tests + Python integration and browser suites
 ├── docs/              architecture and PRD analysis
 ├── Makefile
 └── README.md

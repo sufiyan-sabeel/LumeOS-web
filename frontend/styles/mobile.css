@@ -1,0 +1,297 @@
+/* =====================================================================
+   LumeOS - mobile.css
+   First-class phone / small-tablet interface.
+
+   The shell mode is driven by [data-shell="mobile"] on the root element,
+   which the kernel sets from the viewport width. App containers are the
+   SAME elements as desktop windows (moved between layers), so application
+   state survives a desktop <-> mobile switch.
+   ===================================================================== */
+
+.mobile-nav,
+.mobile-home { display: none; }
+.app-layer { display: none; }
+
+[data-shell='mobile'] {
+  --lume-statusbar-h: 34px;
+  --lume-dock-h: 0px;
+}
+
+/* The desktop chrome is replaced by mobile navigation. */
+[data-shell='mobile'] .dock,
+[data-shell='mobile'] .icons,
+[data-shell='mobile'] .window-layer { display: none; }
+
+[data-shell='mobile'] .app-layer {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+/* =====================================================================
+   Mobile home screen
+   ===================================================================== */
+[data-shell='mobile'] .mobile-home {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--lume-sp-4);
+  padding-top: max(var(--lume-sp-4), env(safe-area-inset-top));
+  padding-bottom: var(--lume-sp-4);
+  -webkit-overflow-scrolling: touch;
+}
+[data-shell='mobile'] .mobile-home[hidden] { display: none; }
+
+.mobile-home__greeting { margin-bottom: var(--lume-sp-4); }
+.mobile-home__clock {
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--lume-text);
+  font-variant-numeric: tabular-nums;
+}
+.mobile-home__date { color: var(--lume-text-2); font-size: var(--lume-fs-md); }
+
+.mobile-home__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--lume-sp-3) var(--lume-sp-2);
+  margin-bottom: var(--lume-sp-6);
+}
+@media (max-width: 359px) {
+  .mobile-home__grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.mobile-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--lume-sp-2);
+  min-height: var(--lume-touch);
+  padding: var(--lume-sp-2) 2px;
+  border: 1px solid transparent;
+  border-radius: var(--lume-r-md);
+  background: transparent;
+  color: var(--lume-text);
+  font-size: var(--lume-fs-xs);
+}
+.mobile-app:active { background: var(--lume-s3); }
+.mobile-app__glyph {
+  width: 52px; height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--lume-s3), var(--lume-s2));
+  border: 1px solid var(--lume-line-2);
+  box-shadow: var(--lume-shadow-sm), var(--lume-hair);
+  color: var(--lume-accent);
+}
+.mobile-app__label {
+  width: 100%;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-home__section {
+  margin: 0 0 var(--lume-sp-3);
+  font-size: var(--lume-fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lume-text-3);
+}
+
+/* =====================================================================
+   Mobile bottom navigation
+   ===================================================================== */
+[data-shell='mobile'] .mobile-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: var(--lume-sp-2);
+  flex: 0 0 auto;
+  padding: 6px var(--lume-sp-2);
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  background: var(--lume-s1);
+  border-top: 1px solid var(--lume-line);
+  z-index: 6;
+}
+.mobile-nav__btn {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: var(--lume-touch);
+  border: none;
+  border-radius: var(--lume-r-md);
+  background: transparent;
+  color: var(--lume-text-3);
+  font-size: var(--lume-fs-xs);
+}
+.mobile-nav__btn[aria-current='true'] { color: var(--lume-accent); }
+.mobile-nav__btn:active { background: var(--lume-s3); }
+.mobile-nav__btn:disabled { opacity: 0.35; }
+
+/* =====================================================================
+   Mobile app views — the same .window element, restyled
+   ===================================================================== */
+[data-shell='mobile'] .app-layer .window {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  width: 100% !important;
+  height: 100% !important;
+  left: 0 !important;
+  top: 0 !important;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  animation: app-view-in var(--lume-dur-2) var(--lume-ease);
+}
+[data-shell='mobile'] .app-layer .window:not(.mobile-active) { display: none; }
+
+@keyframes app-view-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+[data-shell='mobile'] .app-layer .titlebar {
+  flex: 0 0 52px;
+  height: 52px;
+  padding: 0 var(--lume-sp-2);
+  cursor: default;
+  touch-action: auto;
+}
+[data-shell='mobile'] .app-layer .titlebar__title { font-size: var(--lume-fs-md); }
+[data-shell='mobile'] .app-layer .win-btn {
+  width: var(--lume-touch);
+  min-width: var(--lume-touch);
+  height: var(--lume-touch);
+  min-height: var(--lume-touch);
+}
+[data-shell='mobile'] .app-layer .resize-handle { display: none; }
+[data-shell='mobile'] .app-layer .window__body {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Back button: mobile only. */
+.titlebar__back { display: none; }
+[data-shell='mobile'] .titlebar__back {
+  display: grid;
+  place-items: center;
+  width: var(--lume-touch);
+  min-width: var(--lume-touch);
+  height: var(--lume-touch);
+  min-height: var(--lume-touch);
+  border: none;
+  border-radius: var(--lume-r-md);
+  background: transparent;
+  color: var(--lume-text);
+}
+[data-shell='mobile'] .titlebar__back:active { background: var(--lume-s3); }
+/* Minimise and maximise are desktop-only concepts. */
+[data-shell='mobile'] .win-btn.min,
+[data-shell='mobile'] .win-btn.max { display: none; }
+
+/* =====================================================================
+   Recents / app switcher sheet
+   ===================================================================== */
+.recents-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: var(--lume-scrim);
+  animation: fade-in var(--lume-dur-2) var(--lume-ease);
+}
+.recents-sheet__panel {
+  max-height: 72%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--lume-sp-2);
+  padding: var(--lume-sp-4);
+  padding-bottom: max(var(--lume-sp-4), env(safe-area-inset-bottom));
+  background: var(--lume-s2);
+  border-top: 1px solid var(--lume-line-2);
+  border-radius: var(--lume-r-xl) var(--lume-r-xl) 0 0;
+  overflow: auto;
+  animation: sheet-up var(--lume-dur-2) var(--lume-ease);
+}
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.recents-item {
+  display: flex;
+  align-items: center;
+  gap: var(--lume-sp-3);
+  min-height: 56px;
+  padding: 0 var(--lume-sp-3);
+  border: 1px solid var(--lume-line);
+  border-radius: var(--lume-r-md);
+  background: var(--lume-s3);
+  color: var(--lume-text);
+  justify-content: flex-start;
+  text-align: left;
+}
+.recents-item__title { flex: 1 1 auto; font-size: var(--lume-fs-md); }
+
+/* =====================================================================
+   Mobile adjustments for shared chrome
+   ===================================================================== */
+[data-shell='mobile'] .statusbar {
+  padding: 0 var(--lume-sp-3);
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--lume-statusbar-h) + env(safe-area-inset-top));
+  flex-basis: calc(var(--lume-statusbar-h) + env(safe-area-inset-top));
+}
+[data-shell='mobile'] .statusbar__btn { min-height: 28px; height: 28px; }
+
+/* Toasts sit above the mobile nav and clear the safe area. */
+[data-shell='mobile'] .toast-layer {
+  left: var(--lume-sp-3);
+  right: var(--lume-sp-3);
+  bottom: calc(var(--lume-touch) + var(--lume-sp-4) + env(safe-area-inset-bottom));
+  max-width: none;
+}
+
+/* Side panel becomes a full-height sheet on phones. */
+[data-shell='mobile'] .side-panel {
+  top: var(--lume-sp-2);
+  left: var(--lume-sp-2);
+  right: var(--lume-sp-2);
+  bottom: calc(var(--lume-touch) + var(--lume-sp-4) + env(safe-area-inset-bottom));
+  width: auto;
+}
+
+[data-shell='mobile'] .launcher {
+  padding: var(--lume-sp-3);
+  padding-top: max(var(--lume-sp-3), env(safe-area-inset-top));
+}
+[data-shell='mobile'] .launcher__panel { border-radius: var(--lume-r-lg); }
+[data-shell='mobile'] .launcher__grid {
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+}
+[data-shell='mobile'] .launcher__app { min-height: 96px; }
+
+/* Modals go full-width with comfortable touch targets. */
+[data-shell='mobile'] .modal { width: 100%; }
+[data-shell='mobile'] .modal__actions button { min-height: var(--lume-touch); flex: 1; }
+
+/* Context menus must not overflow the viewport on small screens. */
+[data-shell='mobile'] .ctx-menu { min-width: 200px; }
+[data-shell='mobile'] .ctx-menu__item { min-height: var(--lume-touch); }

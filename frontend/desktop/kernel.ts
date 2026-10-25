@@ -1,15 +1,16 @@
 /*
  * LumeOS - desktop/kernel.ts
- * The LumeKernel: boots the OS, wires the desktop, window manager, storage
- * layers and the built-in applications, and exposes the public LumeOS API
- * (window.LumeOS) to installed apps.
+ * The LumeKernel: boots the OS, chooses the shell layout, wires the desktop,
+ * window manager, storage layers and applications, and exposes the public
+ * LumeOS API (window.LumeOS) to installed apps.
  */
 
 import { osState } from './state.js';
 import { appUrl } from './base.js';
 import { bus } from './events.js';
-import { Desktop, type DesktopHost } from './desktop.js';
+import { Desktop, type DesktopHost, type WindowEntry } from './desktop.js';
 import { WindowManager } from './window-manager.js';
+import { MobileShell } from './mobile.js';
 import { registry } from '../apps/registry.js';
 import { ApiClient } from '../storage/api.js';
 import { opfs } from '../storage/opfs.js';
@@ -25,10 +26,12 @@ import type {
   LumeApp,
   LumeWindowHandle,
   PackageEntry,
+  ShellMode,
+  ShellPreference,
   SystemInfo,
 } from './types.js';
 
-/* built-in apps */
+/* built-in applications */
 import { filesApp } from '../apps/files/app.js';
 import { terminalApp } from '../apps/terminal/app.js';
 import { notesApp } from '../apps/notes/app.js';
@@ -51,6 +54,9 @@ const BUILTINS: LumeApp[] = [
   browserApp,
 ];
 
+/** Viewport width at or below which the mobile shell is used. */
+const MOBILE_MAX_WIDTH = 820;
+
 function boot(msg: string, pct: number): void {
   const status = document.getElementById('boot-status');
   const bar = document.getElementById('boot-bar');
@@ -61,24 +67,24 @@ function boot(msg: string, pct: number): void {
 class LumeKernel implements KernelApi, DesktopHost {
   public readonly api = new ApiClient();
   public readonly vfs: Vfs;
+  public readonly version = '1.1.0';
   public wm!: WindowManager;
   public desktop!: Desktop;
-  public readonly version = '1.0.0';
+  public mobile!: MobileShell;
 
   private installed = new Map<string, InstalledAppInfo>();
-  /** Resolves once the service worker is active (or has failed to register). */
   private swReady: Promise<void> = Promise.resolve();
+  private mode: ShellMode = 'desktop';
+  private mq: MediaQueryList | null = null;
 
   constructor() {
     this.vfs = new Vfs(opfs, this.api);
   }
 
   /* ================================================================== */
-  /* Boot                                                                */
+  /* Boot                                                               */
   /* ================================================================== */
   async boot(): Promise<void> {
-    /* Register the service worker first: it installs asynchronously and the
-     * boot sequence's awaits would otherwise run past the window 'load' event. */
     this.registerServiceWorker();
 
     boot('Loading settings…', 10);
@@ -89,9 +95,9 @@ class LumeKernel implements KernelApi, DesktopHost {
     try {
       await idb.open();
     } catch {
-      /* IndexedDB may be unavailable in private mode */
+      /* IndexedDB may be unavailable (private mode) */
     }
-    const opfsOk = await opfs.available();
+    await opfs.available();
 
     boot('Connecting to C backend…', 55);
     this.api.base = osState.settings.serverUrl;
@@ -107,15 +113,24 @@ class LumeKernel implements KernelApi, DesktopHost {
     for (const info of this.installed.values()) this.registerInstalled(info);
 
     boot('Starting window manager…', 92);
-    document.getElementById('lume-boot')?.classList.add('hidden');
-    const shell = document.getElementById('lume-desktop') as HTMLElement;
+    this.applyShellMode(true);
+
+    const shell = document.getElementById('lume-shell') as HTMLElement;
     shell.hidden = false;
+    document.getElementById('lume-boot')?.classList.add('hidden');
 
     this.desktop = new Desktop(this);
-    this.wm = new WindowManager();
-    this.desktop.mount();
-    this.desktop.setServerStatus(online);
+    this.wm = new WindowManager(() => this.onWindowsChanged());
+    this.mobile = new MobileShell(this);
 
+    this.desktop.mount();
+    this.mobile.mount();
+    this.wm.setBackHandler(() => this.mobile.showHome());
+    this.desktop.setServerStatus(online);
+    this.wm.setMode(this.mode);
+    this.mobile.sync();
+
+    this.bindGlobalEvents();
     this.exposeGlobalApi();
     this.handleLaunchParams();
 
@@ -124,10 +139,9 @@ class LumeKernel implements KernelApi, DesktopHost {
 
     this.notify(
       'LumeOS ready',
-      online ? 'C backend online — VFS mounted.' : 'Running offline (OPFS only).',
+      online ? 'C backend online — VFS mounted.' : 'Running offline from local storage (OPFS).',
       online ? 'success' : 'info'
     );
-    void opfsOk;
   }
 
   private async restoreInstalled(): Promise<void> {
@@ -139,6 +153,93 @@ class LumeKernel implements KernelApi, DesktopHost {
     }
   }
 
+  /* ================================================================== */
+  /* Shell mode                                                         */
+  /* ================================================================== */
+  private resolveMode(): ShellMode {
+    const pref = osState.settings.shell;
+    if (pref === 'desktop' || pref === 'mobile') return pref;
+    return window.innerWidth <= MOBILE_MAX_WIDTH ? 'mobile' : 'desktop';
+  }
+
+  private applyShellMode(initial = false): void {
+    const next = this.resolveMode();
+    document.documentElement.setAttribute('data-shell', next);
+    this.mode = next;
+
+    if (initial) {
+      if (!this.mq && typeof window.matchMedia === 'function') {
+        this.mq = window.matchMedia(`(max-width: ${MOBILE_MAX_WIDTH}px)`);
+        const onChange = (): void => {
+          if (osState.settings.shell !== 'auto') return;
+          this.setMode(this.resolveMode());
+        };
+        if (this.mq.addEventListener) this.mq.addEventListener('change', onChange);
+        else this.mq.addListener(onChange);
+      }
+      return;
+    }
+    this.setMode(next);
+  }
+
+  private setMode(mode: ShellMode): void {
+    if (mode === this.mode && document.documentElement.getAttribute('data-shell') === mode) return;
+    this.mode = mode;
+    document.documentElement.setAttribute('data-shell', mode);
+    this.wm?.setMode(mode);
+
+    if (mode === 'mobile') {
+      this.mobile?.sync();
+    } else {
+      this.mobile?.closeRecents();
+      this.mobile?.resetHistory();
+    }
+    this.desktop?.onWindowsChanged();
+  }
+
+  shellMode(): ShellMode {
+    return this.mode;
+  }
+
+  shellPreference(): ShellPreference {
+    return osState.settings.shell;
+  }
+
+  setShellPreference(pref: ShellPreference): void {
+    void osState.update({ shell: pref });
+    this.setMode(this.resolveMode());
+  }
+
+  /* ================================================================== */
+  /* Global events                                                      */
+  /* ================================================================== */
+  private bindGlobalEvents(): void {
+    document.addEventListener('lume:toggle-theme', () => {
+      void osState.update({ theme: osState.settings.theme === 'dark' ? 'light' : 'dark' });
+    });
+
+    document.addEventListener('lume:wallpaper', (e) => {
+      const value = (e as CustomEvent<string>).detail;
+      if (typeof value === 'string' && value) {
+        osState.setWallpaper(value);
+        this.notify('Wallpaper changed', '', 'success');
+      }
+    });
+
+    /* Keep the viewport honest: no horizontal overflow anywhere. */
+    window.addEventListener('resize', () => {
+      if (osState.settings.shell === 'auto') this.setMode(this.resolveMode());
+    });
+  }
+
+  private onWindowsChanged(): void {
+    this.desktop?.onWindowsChanged();
+    this.mobile?.sync();
+  }
+
+  /* ================================================================== */
+  /* Installed web packages                                             */
+  /* ================================================================== */
   private registerInstalled(info: InstalledAppInfo): void {
     const manifest: AppManifest = {
       id: info.id,
@@ -148,14 +249,13 @@ class LumeKernel implements KernelApi, DesktopHost {
       category: 'utility',
       type: 'web',
       version: info.version,
-      width: 820,
-      height: 560,
+      width: 860,
+      height: 580,
       onDesktop: true,
     };
     registry.registerFactory(manifest, () => this.webAppInstance(info));
   }
 
-  /** Build a LumeApp that hosts an installed web package in a sandboxed iframe. */
   private webAppInstance(info: InstalledAppInfo): LumeApp {
     const kernel = this;
     return {
@@ -171,9 +271,9 @@ class LumeKernel implements KernelApi, DesktopHost {
         const frame = document.createElement('iframe');
         frame.className = 'browser__frame';
         frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-same-origin');
+        frame.title = info.name;
         ctx.window.body.appendChild(frame);
 
-        /* LumeOS IPC bridge: installed apps talk to the kernel via postMessage. */
         const onMessage = (e: MessageEvent): void => {
           if (e.source !== frame.contentWindow) return;
           const msg = e.data as { type?: string; method?: string; args?: unknown[] };
@@ -185,8 +285,7 @@ class LumeKernel implements KernelApi, DesktopHost {
           window.removeEventListener('message', onMessage)
         );
 
-        /* The package is served from OPFS by the service worker, so wait for
-         * it to be active before navigating the frame. */
+        /* The package is served from OPFS by the service worker. */
         void kernel.swReady.then(() => {
           frame.src = appUrl(`apps/installed/${info.id}/${info.entry ?? 'index.html'}`);
         });
@@ -222,10 +321,11 @@ class LumeKernel implements KernelApi, DesktopHost {
   }
 
   /* ================================================================== */
-  /* KernelApi                                                           */
+  /* KernelApi                                                          */
   /* ================================================================== */
   notify(title: string, body = '', kind: 'info' | 'success' | 'error' = 'info'): void {
     toast(title, body, kind);
+    this.desktop?.pushNotification(title, body, kind);
     bus.emit('toast', { title, body, kind });
   }
 
@@ -238,32 +338,32 @@ class LumeKernel implements KernelApi, DesktopHost {
     if (reg.manifest.singleton) {
       const existing = this.wm.findByApp(id);
       if (existing) {
-        existing.win.restore();
+        this.wm.focus(existing.win.id);
         return;
       }
     }
+
     const instance = reg.create();
     let unmount: (() => void) | undefined = instance.unmount?.bind(instance);
 
-    const win = this.wm.create(
+    this.wm.create(
       id,
       reg.manifest,
       (handle: LumeWindowHandle) => instance.mount({ window: handle, args, kernel: this }),
       () => {
-        win.el.dispatchEvent(new Event('lume:unmount'));
         unmount?.();
         unmount = undefined;
       },
       args
     );
+
+    if (this.mode === 'mobile') {
+      this.mobile.notifyAppOpened();
+      this.mobile.pushHistory();
+    }
   }
 
   isServerOnline(): boolean {
-    return this.api.online;
-  }
-
-  /* DesktopHost alias */
-  serverOnline(): boolean {
     return this.api.online;
   }
 
@@ -286,6 +386,7 @@ class LumeKernel implements KernelApi, DesktopHost {
     }
     this.registerInstalled(info);
     this.desktop.renderIcons();
+    this.mobile.renderHome();
     void this.desktop.refreshStorage();
   }
 
@@ -304,6 +405,7 @@ class LumeKernel implements KernelApi, DesktopHost {
       /* ignore */
     }
     this.desktop.renderIcons();
+    this.mobile.renderHome();
   }
 
   installedApps(): InstalledAppInfo[] {
@@ -311,7 +413,7 @@ class LumeKernel implements KernelApi, DesktopHost {
   }
 
   /* ================================================================== */
-  /* DesktopHost                                                         */
+  /* DesktopHost                                                        */
   /* ================================================================== */
   launch(appId: string, args: Record<string, unknown> = {}): void {
     this.openApp(appId, args);
@@ -319,6 +421,19 @@ class LumeKernel implements KernelApi, DesktopHost {
 
   manifests(): AppManifest[] {
     return registry.desktopApps();
+  }
+
+  serverOnline(): boolean {
+    return this.api.online;
+  }
+
+  async serverInfo(): Promise<SystemInfo | null> {
+    if (!this.api.online) return null;
+    try {
+      return await this.api.systemInfo();
+    } catch {
+      return null;
+    }
   }
 
   storageUsage(): Promise<{ usage: number; quota: number }> {
@@ -330,22 +445,45 @@ class LumeKernel implements KernelApi, DesktopHost {
   }
 
   uninstall(appId: string): void {
-    void this.uninstallApp(appId).then(() =>
-      this.notify('Uninstalled', appId, 'success')
-    );
+    void this.uninstallApp(appId).then(() => this.notify('Uninstalled', appId, 'success'));
   }
 
   sourceUrl(): string {
     return this.api.sourceExportUrl();
   }
 
+  windows(): WindowEntry[] {
+    return this.wm.entries();
+  }
+
+  activeWindowId(): string | null {
+    return this.wm.activeWindowId();
+  }
+
+  focusWindow(id: string): void {
+    this.wm.focus(id);
+  }
+
+  closeWindow(id: string): void {
+    this.wm.close(id);
+  }
+
+  blurWindows(): void {
+    this.wm.blur();
+  }
+
   /* ================================================================== */
-  /* Public API + PWA                                                    */
+  /* Public API + PWA                                                   */
   /* ================================================================== */
   private exposeGlobalApi(): void {
     const kernel = this;
     const LumeOS = {
       version: this.version,
+      shell: {
+        mode: (): ShellMode => kernel.shellMode(),
+        preference: (): ShellPreference => kernel.shellPreference(),
+        setPreference: (p: ShellPreference): void => kernel.setShellPreference(p),
+      },
       fs: {
         read: (p: string): Promise<string> => kernel.vfs.readText(p),
         write: (p: string, c: string): Promise<void> => kernel.vfs.writeText(p, c),
@@ -380,8 +518,6 @@ class LumeKernel implements KernelApi, DesktopHost {
         });
     };
 
-    /* If the document already finished loading, register immediately;
-     * otherwise wait for the load event. */
     if (document.readyState === 'complete') register();
     else window.addEventListener('load', register, { once: true });
   }
@@ -395,8 +531,6 @@ class LumeKernel implements KernelApi, DesktopHost {
   }
 }
 
-/* ---------------------------------------------------------------------- */
-/* Entry                                                                  */
 /* ---------------------------------------------------------------------- */
 const kernel = new LumeKernel();
 

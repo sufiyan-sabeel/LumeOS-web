@@ -95,7 +95,7 @@ export const aiCenterApp: LumeApp = {
   manifest: {
     id: 'ai-center',
     name: 'AI Center',
-    glyph: '🧠',
+    icon: 'sparkles',
     description: 'Detect AI capabilities and run local prompts offline.',
     category: 'ai',
     type: 'builtin',

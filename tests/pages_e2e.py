@@ -155,8 +155,14 @@ def main():
         print("site not built: run the site build first")
         return 1
 
-    httpd = start_server()
-    base = f"http://127.0.0.1:{HTTP_PORT}{SUBPATH}"
+    live = os.environ.get("LIVE_URL")
+    if live:
+        base = live if live.endswith("/") else live + "/"
+        httpd = None
+        print(f"targeting live site: {base}")
+    else:
+        httpd = start_server()
+        base = f"http://127.0.0.1:{HTTP_PORT}{SUBPATH}"
 
     # ---------- 0. published package repository integrity ----------
     print("== 0. published package repository ==")
@@ -166,7 +172,8 @@ def main():
             idx = json.loads(r.read())
     except Exception as e:
         print("  FAIL  catalog fetch:", e)
-        httpd.shutdown()
+        if httpd:
+            httpd.shutdown()
         return 1
     check("catalog published with 4 packages", len(idx.get("packages", [])) == 4,
           str([p.get("id") for p in idx.get("packages", [])]))
@@ -190,16 +197,21 @@ def main():
         # ---------- 1. boot ----------
         print("== 1. boot from subpath ==")
         ok = cdp.wait_for(
-            "document.getElementById('lume-desktop') && "
-            "document.getElementById('lume-desktop').hidden === false", timeout=45)
+            "document.getElementById('lume-shell') && "
+            "document.getElementById('lume-shell').hidden === false", timeout=45)
         check("desktop mounted", ok)
         check("no boot failure", cdp.eval("!document.body.innerText.includes('Boot failed')"))
         icons = cdp.eval("[...document.querySelectorAll('.icon__label')].map(e=>e.textContent)")
         check("desktop icons rendered", isinstance(icons, list) and len(icons) >= 9, str(icons))
-        check("taskbar present", cdp.eval("!!document.querySelector('.tb-start')"))
-        check("start menu populated", cdp.eval("document.querySelectorAll('.start-app').length >= 9"))
-        check("tray shows server offline", "offline" in (cdp.eval(
-            "document.querySelector('.tb-tray') ? document.querySelector('.tb-tray').innerText : ''") or ""))
+        check("dock launcher present", cdp.eval("!!document.querySelector('.dock__launcher')"))
+        check("launcher populated", cdp.eval("""(() => {
+            document.querySelector('.dock__launcher').click();
+            return document.querySelectorAll('.launcher__app').length >= 9;
+        })()"""))
+        cdp.eval("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
+        time.sleep(0.3)
+        check("status bar shows server offline", "offline" in (cdp.eval(
+            "document.querySelector('.statusbar') ? document.querySelector('.statusbar').innerText : ''") or ""))
         check("service worker registered", cdp.eval(
             "navigator.serviceWorker.getRegistrations().then(r=>r.length>0)", await_promise=True))
         check("global LumeOS API exposed", cdp.eval("typeof window.LumeOS === 'object'"))
@@ -276,7 +288,10 @@ def main():
 
         # ---------- 6. screenshot ----------
         shot = "/scratch/work/pages_desktop.png"
-        r = cdp.send("Page.captureScreenshot", {"format": "png"})
+        cdp.eval("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r(1))))",
+                 await_promise=True)
+        time.sleep(0.35)
+        r = cdp.send("Page.captureScreenshot", {"format": "png", "fromSurface": True})
         data = r.get("result", {}).get("data")
         if data:
             import base64
@@ -290,7 +305,8 @@ def main():
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             proc.kill()
-        httpd.shutdown()
+        if httpd:
+            httpd.shutdown()
 
     print(f"\n{passed} passed, {failed} failed")
     return 0 if failed == 0 else 1

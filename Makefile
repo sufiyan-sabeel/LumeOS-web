@@ -58,8 +58,29 @@ $(WEBROOT)/index.html: $(wildcard frontend/**/*.ts) frontend/index.html frontend
 	@cp -f frontend/manifest.json $(WEBROOT)/manifest.json
 	@cp -f frontend/service-worker.js $(WEBROOT)/service-worker.js
 	@mkdir -p $(WEBROOT)/styles $(WEBROOT)/assets
-	@cp -rf frontend/styles/. $(WEBROOT)/styles/ 2>/dev/null || true
+	@cp -rf frontend/styles/. $(WEBROOT)/styles/
+	@cp -rf frontend/assets/. $(WEBROOT)/assets/
 	@echo "  -> frontend ready in $(WEBROOT)"
+	@$(MAKE) --no-print-directory verify-web
+
+# Every file the browser asks for must exist after a clean build. This guard
+# exists because the stylesheet/asset copy step was previously incomplete and
+# the PWA icon silently 404'd.
+REQUIRED_WEB := index.html manifest.json service-worker.js desktop/kernel.js \
+                storage/zip.js styles/base.css styles/desktop.css styles/mobile.css \
+                styles/apps.css assets/icon.svg
+
+verify-web:
+	@missing=""; for f in $(REQUIRED_WEB); do \
+	    [ -f "$(WEBROOT)/$$f" ] || missing="$$missing $$f"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+	    echo "  !! BUILD INCOMPLETE - missing from $(WEBROOT):$$missing" >&2; \
+	    exit 1; \
+	fi; \
+	echo "  -> verified $(words $(REQUIRED_WEB)) required web assets present"
+
+.PHONY: verify-web
 
 # ---------------------------------------------------------------------
 # Run
@@ -125,6 +146,7 @@ test-e2e: pages
 # ---------------------------------------------------------------------
 clean:
 	rm -rf build
+	@echo "  -> removed build/ (run 'make' for a full clean rebuild)"
 	@find frontend -name '*.js' -not -path '*/node_modules/*' -delete 2>/dev/null || true
 
 help:

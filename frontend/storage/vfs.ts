@@ -112,6 +112,68 @@ export class Vfs implements VfsApi {
     await this.opfsMgr.remove(p);
   }
 
+  /**
+   * Explicitly target one storage tier. 'server' fails when the backend is
+   * offline; 'opfs' always reads browser-local storage; 'auto' follows the
+   * normal preference. Used by the Files app to show both tiers side by side.
+   */
+  async listFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<FileEntry[]> {
+    if (source === 'auto') return this.list(path);
+    if (source === 'server') {
+      if (!this.api.online) throw new Error('C backend is offline');
+      const r = await this.api.listFiles(this.norm(path));
+      this.lastBackend = 'server';
+      return r.entries;
+    }
+    this.lastBackend = 'opfs';
+    const entries = await this.opfsMgr.list(this.norm(path));
+    return entries.map((e) => ({ name: e.name, type: e.type, size: e.size, mtime: 0 }));
+  }
+
+  async readFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<string> {
+    if (source === 'auto') return this.readText(path);
+    if (source === 'server') {
+      if (!this.api.online) throw new Error('C backend is offline');
+      const r = await this.api.readFile(this.norm(path));
+      this.lastBackend = 'server';
+      return r.content;
+    }
+    this.lastBackend = 'opfs';
+    return this.opfsMgr.readText(this.norm(path));
+  }
+
+  async writeFrom(source: 'auto' | 'server' | 'opfs', path: string, content: string): Promise<void> {
+    if (source === 'auto') return this.writeText(path, content);
+    if (source === 'server') {
+      if (!this.api.online) throw new Error('C backend is offline');
+      await this.api.writeFile(this.norm(path), content);
+      this.lastBackend = 'server';
+      return;
+    }
+    this.lastBackend = 'opfs';
+    await this.opfsMgr.writeText(this.norm(path), content);
+  }
+
+  async mkdirFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<void> {
+    if (source === 'auto') return this.mkdir(path);
+    if (source === 'server') {
+      if (!this.api.online) throw new Error('C backend is offline');
+      await this.api.mkdir(this.norm(path));
+      return;
+    }
+    await this.opfsMgr.mkdir(this.norm(path));
+  }
+
+  async removeFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<void> {
+    if (source === 'auto') return this.remove(path);
+    if (source === 'server') {
+      if (!this.api.online) throw new Error('C backend is offline');
+      await this.api.deletePath(this.norm(path));
+      return;
+    }
+    await this.opfsMgr.remove(this.norm(path));
+  }
+
   async exists(path: string): Promise<boolean> {
     const p = this.norm(path);
     if (this.serverAvailable()) {

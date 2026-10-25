@@ -150,23 +150,78 @@ App Store            Downloads            OPFS            IndexedDB     Desktop
     └─ launch → iframe /apps/installed/<id>/index.html ◄── service worker ──┘
 ```
 
+## 4b. Shell modes (desktop and mobile)
+
+LumeOS has two shells and one set of application elements.
+
+* **Desktop shell** (`desktop/desktop.ts`, `desktop/window-manager.ts`):
+  status bar, icon grid, dock, launcher, notification centre with quick
+  settings, context menus. Windows live in `#window-layer` and are freely
+  positioned, draggable, resizable, snappable and keyboard-managed.
+* **Mobile shell** (`desktop/mobile.ts`): home screen, bottom navigation and a
+  recents sheet. Application views live in `#app-layer` and are presented
+  full-screen, one at a time, with a back action.
+
+The mode is derived from `window.innerWidth <= 820` unless the user pins a
+preference, and is written to `data-shell` on the root element. All layout
+differences are expressed in CSS against `[data-shell='mobile']`, so there is
+exactly one place where the two shells diverge.
+
+**State across the switch.** `WindowManager.setMode()` moves the *same*
+`LumeWindow` elements between `#window-layer` and `#app-layer` and toggles the
+`mobile-active` class. Because the DOM nodes are moved rather than rebuilt, an
+open application keeps its state, scroll position and listeners when the
+viewport crosses the breakpoint. The title bar carries both desktop controls
+(minimise/maximise) and a mobile back button; CSS shows the appropriate set.
+
+**Back semantics.** On mobile, back returns to the home screen and leaves the
+application running (it appears in recents); on desktop, back closes the window.
+The browser/device back action is wired through the History API so Android's
+back gesture returns home before leaving LumeOS.
+
+## 4c. Application state and honesty rules
+
+* The Notes editor is inert until a note is selected, so text typed into an
+  unsaved buffer can never be silently lost; notes are autosaved and flushed on
+  close.
+* The Files app targets a storage tier explicitly (`Vfs.listFrom('server'|'opfs')`)
+  so the server volume and offline volume can be shown side by side, and it
+  reports the real reason when a tier is unavailable.
+* The Browser states plainly that many sites refuse framing and offers a
+  one-click escape to a real tab; it does not claim unrestricted control.
+* The AI Center runs a deterministic rule-based micro-model and says so rather
+  than implying neural inference it cannot perform.
+
 ## 5. Testing
 
-* `tests/test_main.c` — 41 assertions: SHA-256/CRC32 vectors, string/JSON/URL
-  helpers, `lume_secure_path` traversal cases, token auth, MIME.
-* `tests/integration_test.py` — 39 assertions against a live server: health,
-  telemetry, files CRUD, nested writes, auth gating, traversal blocking, native
-  exec gating, static serving, package repository, source export.
+Five suites, 192 assertions, all run against the real build:
+
+| Suite | Command | Assertions |
+|-------|---------|-----------|
+| C unit | `./build/lume-tests` | 41 — hashing, helpers, path traversal, token auth |
+| Backend integration | `python3 tests/integration_test.py` | 39 — live server CRUD, auth, traversal, packages, export |
+| Archive reader | `make test-zip` | 8 — `.lume` ZIP extraction vs real `zip` output |
+| Static site E2E | `make test-e2e` | 29 — subpath boot, catalog, install, offline launch |
+| Responsive / interaction | `python3 tests/responsive_e2e.py` | 76 — six viewports, both shells, window controls, keyboard, panels, persistence, breakpoint switching |
+
+The browser suites drive headless Chromium over CDP and assert against the live
+DOM. One caveat learned while building them: headless Chromium without a GPU can
+leave a stale composited layer for elements that use `backdrop-filter`, so a
+screenshot may show a ghost overlay even when the DOM asserts it is hidden.
+The suites therefore assert DOM state rather than trusting the pixels.
 
 ## 6. Known limitations
 
-* The AI Center ships a deterministic **rule-based micro-model**; neural
-  weights can be downloaded but no GGUF/ONNX runtime is bundled, and the UI
-  says so rather than pretending otherwise.
-* Downloads pause by aborting and must restart from zero (no byte-range resume
-  yet).
-* Native packages detect the OS and expose the installer/runtime bridge path;
-  actually launching a native binary requires it to be present and listed in
+* The AI Center ships a deterministic **rule-based micro-model**. Neural weights
+  can be downloaded, but no GGUF/ONNX runtime is bundled, and the UI says so.
+* Downloads pause and cancel, but do not resume mid-file.
+* No WebSocket endpoint yet — the REST surface covers every PRD endpoint.
+* Native packages detect the host OS and expose the installer/runtime bridge;
+  launching a native binary requires it to be present and allow-listed in
   `data/database/native_registry.txt`.
-* The server is HTTP/1.1 with `Connection: close`; HTTP keep-alive and
-  WebSocket support are future work (the PRD lists WebSocket as a goal).
+* The Browser cannot embed sites that send `X-Frame-Options` /
+  `frame-ancestors`, and cannot inspect cross-origin frames. It says so and
+  offers to open the page in a real tab.
+* The server is HTTP/1.1 with `Connection: close`; keep-alive is future work.
+* Screenshots taken in headless Chromium without a GPU may show stale
+  compositor layers for blurred elements (a capture artefact, not a UI bug).

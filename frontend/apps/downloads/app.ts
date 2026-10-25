@@ -5,6 +5,7 @@
 
 import type { LumeApp, AppContext } from '../../desktop/types.js';
 import { downloads, type DownloadTask } from '../../desktop/downloads.js';
+import { iconEl } from '../../components/icons.js';
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -23,7 +24,7 @@ export const downloadsApp: LumeApp = {
   manifest: {
     id: 'downloads',
     name: 'Downloads',
-    glyph: '⬇️',
+    icon: 'download',
     description: 'Download queue, progress and installer trigger.',
     category: 'system',
     type: 'builtin',
@@ -53,7 +54,10 @@ export const downloadsApp: LumeApp = {
         const row = el('div', 'dl-row');
         const top = el('div', 'dl-row__top');
         const left = el('div');
-        left.append(el('div', undefined, `${t.kind === 'ai-model' ? '🧠' : t.kind === 'native' ? '💽' : '🌐'}  ${t.name}`));
+        const nameRow = el('div', 'dl-row__name');
+        nameRow.appendChild(iconEl(t.kind === 'ai-model' ? 'sparkles' : t.kind === 'native' ? 'drive' : 'globe', 15));
+        nameRow.appendChild(el('span', undefined, t.name));
+        left.appendChild(nameRow);
         left.append(el('div', 'muted', `${fmtBytes(t.loaded)}${t.total ? ` / ${fmtBytes(t.total)}` : ''}  ·  ${t.status}`));
         const actions = el('div', 'row');
 

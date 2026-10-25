@@ -1,102 +1,184 @@
 /*
  * LumeOS - apps/browser/app.ts
- * Embedded viewer that renders local VFS documents (via blob URLs) and
- * external URLs inside a sandboxed iframe.
+ * Embedded viewer for local VFS documents and external URLs.
+ *
+ * Honest about its limits: a browser page cannot embed sites that send
+ * X-Frame-Options / frame-ancestors, and it cannot inspect cross-origin
+ * frames. Local documents are rendered from a blob URL; external URLs are
+ * attempted in a sandboxed frame with a one-click escape to a real tab.
  */
 
-import type { LumeApp, AppContext } from '../../desktop/types.js';
+import type { AppContext, LumeApp } from '../../desktop/types.js';
+import { iconEl } from '../../components/icons.js';
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  cls?: string,
+  text?: string
+): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
 
 export const browserApp: LumeApp = {
   manifest: {
     id: 'browser',
     name: 'Browser',
-    glyph: '🌐',
-    description: 'View local VFS pages and external URLs.',
+    icon: 'globe',
+    description: 'View local documents and external pages where the site allows embedding.',
     category: 'media',
     type: 'builtin',
-    width: 900,
-    height: 620,
+    width: 960,
+    height: 640,
     onDesktop: true,
   },
 
   mount(ctx: AppContext) {
-    const app = document.createElement('div');
-    app.className = 'app';
+    const app = el('div', 'app');
+    const toolbar = el('div', 'app__toolbar');
 
-    const toolbar = document.createElement('div');
-    toolbar.className = 'app__toolbar';
+    const back = el('button', 'icon-btn');
+    back.type = 'button';
+    back.title = 'Back';
+    back.setAttribute('aria-label', 'Back');
+    back.appendChild(iconEl('back', 16));
 
-    const back = document.createElement('button');
-    back.textContent = '←';
-    const reload = document.createElement('button');
-    reload.textContent = '⟳';
+    const reload = el('button', 'icon-btn');
+    reload.type = 'button';
+    reload.title = 'Reload';
+    reload.setAttribute('aria-label', 'Reload');
+    reload.appendChild(iconEl('refresh', 16));
 
-    const omni = document.createElement('input');
-    omni.className = 'browser__omni';
+    const omni = el('input', 'browser__omni');
     omni.type = 'text';
-    omni.placeholder = 'Enter URL (https://…) or local path (/index.html)';
-    omni.value = (ctx.args.url as string) ?? '/index.html';
+    omni.placeholder = 'Local path (/notes/…) or https://…';
+    omni.setAttribute('aria-label', 'Address');
+    omni.value = (ctx.args.url as string) ?? '/';
 
-    const go = document.createElement('button');
-    go.className = 'primary';
-    go.textContent = 'Go';
+    const go = el('button', 'primary', 'Go');
+    go.type = 'button';
 
-    toolbar.append(back, reload, omni, go);
+    const external = el('button', 'icon-btn');
+    external.type = 'button';
+    external.title = 'Open in a new browser tab';
+    external.setAttribute('aria-label', 'Open in a new tab');
+    external.appendChild(iconEl('external', 16));
 
-    const frame = document.createElement('iframe');
-    frame.className = 'browser__frame';
+    toolbar.append(back, reload, omni, go, external);
+
+    const notice = el('div', 'browser__notice');
+    notice.appendChild(iconEl('info', 14));
+    const noticeText = el('span');
+    notice.appendChild(noticeText);
+
+    const frame = el('iframe', 'browser__frame');
     frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-same-origin');
+    frame.title = 'Page content';
 
-    const status = document.createElement('div');
-    status.className = 'app__status';
+    const status = el('div', 'app__status');
 
-    app.append(toolbar, frame, status);
+    app.append(toolbar, notice, frame, status);
     ctx.window.body.appendChild(app);
 
     const history: string[] = [];
+    let blobUrl: string | null = null;
+    let current = '';
 
-    const setStatus = (msg: string): void => {
-      status.textContent = msg;
+    const releaseBlob = (): void => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+      }
+    };
+
+    const setNotice = (text: string, kind: 'info' | 'warn' = 'info'): void => {
+      if (!text) {
+        notice.hidden = true;
+        return;
+      }
+      notice.hidden = false;
+      notice.style.background = kind === 'warn' ? 'var(--lume-warn-dim)' : 'var(--lume-accent-dim)';
+      noticeText.textContent = text;
+    };
+
+    const setStatus = (text: string): void => {
+      status.replaceChildren();
+      status.appendChild(el('span', undefined, text));
     };
 
     const navigate = async (raw: string): Promise<void> => {
       const target = raw.trim();
       if (!target) return;
-      history.push(target);
+
+      releaseBlob();
 
       if (target.startsWith('/')) {
-        /* Local VFS document -> render through the virtual file system. */
+        /* Local document from the virtual file system. */
+        setNotice('');
         try {
-          const html = await ctx.kernel.vfs.readText(target);
-          const blob = new Blob([html], { type: 'text/html' });
-          const url = URL.createObjectURL(blob);
-          frame.src = url;
+          const text = await ctx.kernel.vfs.readText(target);
+          const type = /\.html?$/i.test(target) ? 'text/html' : 'text/plain';
+          blobUrl = URL.createObjectURL(new Blob([text], { type }));
+          frame.src = blobUrl;
+          current = target;
           ctx.window.setTitle(`Browser — ${target}`);
-          setStatus(`Local: ${target}`);
+          setStatus(`Local document · ${target} · ${text.length} characters`);
         } catch (e) {
-          setStatus(`Local load failed: ${(e as Error).message}`);
+          frame.removeAttribute('src');
+          setNotice(`Could not read ${target}: ${(e as Error).message}`, 'warn');
+          setStatus('Load failed');
         }
         return;
       }
 
       const url = /^https?:\/\//i.test(target) ? target : `https://${target}`;
-      frame.src = url;
-      ctx.window.setTitle(`Browser — ${url}`);
-      setStatus(`External: ${url} (sandboxed)`);
-    };
-
-    go.onclick = () => void navigate(omni.value);
-    omni.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') void navigate(omni.value);
-    });
-    reload.onclick = () => void navigate(omni.value);
-    back.onclick = () => {
-      if (history.length > 1) {
-        history.pop();
-        void navigate(history.pop() as string);
+      try {
+        const parsed = new URL(url);
+        frame.src = parsed.href;
+        current = parsed.href;
+        ctx.window.setTitle(`Browser — ${parsed.hostname}`);
+        setStatus(`External page · ${parsed.href}`);
+        setNotice(
+          'Many websites refuse to be embedded in a frame. If the page stays blank, use the ' +
+            'open-in-new-tab button.',
+          'warn'
+        );
+      } catch {
+        setNotice(`Not a valid address: ${target}`, 'warn');
       }
     };
 
+    const doGo = (): void => {
+      history.push(omni.value);
+      void navigate(omni.value);
+    };
+
+    go.addEventListener('click', doGo);
+    omni.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doGo();
+    });
+    reload.addEventListener('click', () => void navigate(omni.value));
+    back.addEventListener('click', () => {
+      if (history.length > 1) {
+        history.pop();
+        const prev = history.pop() as string;
+        omni.value = prev;
+        history.push(prev);
+        void navigate(prev);
+      }
+    });
+    external.addEventListener('click', () => {
+      const target = current || omni.value;
+      if (!target) return;
+      const url = target.startsWith('/') ? new URL(target, location.origin).href : target;
+      window.open(url, '_blank', 'noopener');
+    });
+
+    ctx.window.el.addEventListener('lume:unmount', releaseBlob);
+
+    setNotice('Enter a local path such as /index.html, or an https:// address.');
     void navigate(omni.value);
   },
 };

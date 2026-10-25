@@ -1,27 +1,32 @@
 /*
  * LumeOS - apps/settings/app.ts
- * OS configuration: theme engine, backend connection, storage inspector.
+ * System settings: appearance, layout, backend connection and storage.
+ * Every control writes to real persisted state and takes effect immediately.
  */
 
-import type { LumeApp, AppContext } from '../../desktop/types.js';
+import type { AppContext, LumeApp, ShellPreference } from '../../desktop/types.js';
 import { osState } from '../../desktop/state.js';
+import { WALLPAPERS } from '../../desktop/desktop.js';
+import { confirmDialog } from '../../components/modal.js';
+import { iconEl } from '../../components/icons.js';
 
-function row(label: string, control: HTMLElement): HTMLElement {
-  const r = document.createElement('div');
-  r.className = 'settings__row';
-  const l = document.createElement('label');
-  l.textContent = label;
-  r.append(l, control);
-  return r;
-}
+const ACCENTS: Array<{ name: string; value: string }> = [
+  { name: 'Blue', value: '#5b8def' },
+  { name: 'Violet', value: '#8f6be0' },
+  { name: 'Teal', value: '#2fbfa8' },
+  { name: 'Amber', value: '#d9a066' },
+  { name: 'Rose', value: '#e0657a' },
+];
 
-function section(title: string): HTMLElement {
-  const s = document.createElement('div');
-  s.className = 'settings__section';
-  const h = document.createElement('h3');
-  h.textContent = title;
-  s.appendChild(h);
-  return s;
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  cls?: string,
+  text?: string
+): HTMLElementTagNameMap[K] {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
 }
 
 function fmtBytes(n: number): string {
@@ -35,145 +40,253 @@ export const settingsApp: LumeApp = {
   manifest: {
     id: 'settings',
     name: 'Settings',
-    glyph: '⚙️',
-    description: 'Configure the desktop, storage and C backend connection.',
+    icon: 'settings',
+    description: 'Appearance, layout, backend connection and storage.',
     category: 'system',
     type: 'builtin',
-    width: 720,
-    height: 560,
+    width: 760,
+    height: 600,
     onDesktop: true,
   },
 
   mount(ctx: AppContext) {
-    const app = document.createElement('div');
-    app.className = 'app';
-    const content = document.createElement('div');
-    app.className = 'app';
-    content.className = 'app__content';
+    const app = el('div', 'app');
+    const content = el('div', 'app__content');
     app.appendChild(content);
     ctx.window.body.appendChild(app);
 
-    /* ---- Appearance ---- */
-    const appear = section('Appearance');
+    const section = (title: string): HTMLElement => {
+      const s = el('div', 'settings__section');
+      s.appendChild(el('h3', undefined, title));
+      return s;
+    };
 
-    const themeSel = document.createElement('select');
-    themeSel.innerHTML = '<option value="dark">Dark</option><option value="light">Light</option>';
+    const row = (label: string, hint: string, control: HTMLElement): HTMLElement => {
+      const r = el('div', 'settings__row');
+      const l = el('label');
+      l.appendChild(document.createTextNode(label));
+      if (hint) l.appendChild(el('small', undefined, hint));
+      r.append(l, control);
+      return r;
+    };
+
+    /* ================= Appearance ================= */
+    const appearance = section('Appearance');
+
+    const themeSel = el('select');
+    themeSel.setAttribute('aria-label', 'Theme');
+    for (const [value, label] of [['dark', 'Dark'], ['light', 'Light']] as const) {
+      const o = el('option', undefined, label);
+      o.value = value;
+      themeSel.appendChild(o);
+    }
     themeSel.value = osState.settings.theme;
-    themeSel.onchange = () => void osState.update({ theme: themeSel.value as 'dark' | 'light' });
-    appear.appendChild(row('Theme', themeSel));
+    themeSel.addEventListener('change', () =>
+      void osState.update({ theme: themeSel.value as 'dark' | 'light' })
+    );
+    appearance.appendChild(row('Theme', 'Dark is optimised for AMOLED displays.', themeSel));
 
-    const accent = document.createElement('input');
-    accent.type = 'color';
-    accent.value = osState.settings.accent;
-    accent.oninput = () => void osState.update({ accent: accent.value });
-    appear.appendChild(row('Accent colour', accent));
+    const accentWrap = el('div', 'row');
+    for (const a of ACCENTS) {
+      const b = el('button');
+      b.type = 'button';
+      b.title = a.name;
+      b.setAttribute('aria-label', `Accent colour ${a.name}`);
+      b.style.cssText = `width:26px;min-width:26px;height:26px;min-height:26px;padding:0;border-radius:50%;background:${a.value};border:2px solid ${
+        osState.settings.accent.toLowerCase() === a.value.toLowerCase()
+          ? 'var(--lume-text)'
+          : 'transparent'
+      }`;
+      b.addEventListener('click', () => void osState.update({ accent: a.value }));
+      accentWrap.appendChild(b);
+    }
+    appearance.appendChild(row('Accent', 'Used for highlights and focus.', accentWrap));
 
-    const wall = document.createElement('input');
-    wall.type = 'text';
-    wall.placeholder = 'CSS background value (optional)';
-    wall.value = osState.settings.wallpaper;
-    wall.style.width = '260px';
-    wall.onchange = () => void osState.update({ wallpaper: wall.value });
-    appear.appendChild(row('Wallpaper (CSS)', wall));
+    const wallSel = el('select');
+    wallSel.setAttribute('aria-label', 'Wallpaper');
+    const custom = el('option', undefined, 'Default');
+    custom.value = '';
+    wallSel.appendChild(custom);
+    for (const w of WALLPAPERS) {
+      const o = el('option', undefined, w.name);
+      o.value = w.value;
+      wallSel.appendChild(o);
+    }
+    wallSel.value = osState.settings.wallpaper;
+    wallSel.addEventListener('change', () => osState.setWallpaper(wallSel.value));
+    appearance.appendChild(row('Wallpaper', 'Right-click the desktop to cycle quickly.', wallSel));
 
-    content.appendChild(appear);
+    const motion = el('input');
+    motion.type = 'checkbox';
+    motion.checked = osState.settings.reducedMotion;
+    motion.setAttribute('aria-label', 'Reduce motion');
+    motion.addEventListener('change', () =>
+      void osState.update({ reducedMotion: motion.checked })
+    );
+    appearance.appendChild(
+      row('Reduce motion', 'Disables interface animations. Your system setting is always respected.', motion)
+    );
 
-    /* ---- Backend connection ---- */
-    const backend = section('C Backend Connection');
+    content.appendChild(appearance);
 
-    const url = document.createElement('input');
+    /* ================= Layout ================= */
+    const layout = section('Layout');
+
+    const shellSel = el('select');
+    shellSel.setAttribute('aria-label', 'Shell layout');
+    for (const [value, label] of [
+      ['auto', 'Automatic (by screen width)'],
+      ['desktop', 'Desktop'],
+      ['mobile', 'Mobile'],
+    ] as const) {
+      const o = el('option', undefined, label);
+      o.value = value;
+      shellSel.appendChild(o);
+    }
+    shellSel.value = osState.settings.shell;
+    shellSel.addEventListener('change', () => {
+      ctx.kernel.setShellPreference(shellSel.value as ShellPreference);
+      modeLabel.textContent = `Active: ${ctx.kernel.shellMode()}`;
+    });
+    layout.appendChild(
+      row('Shell', 'Mobile uses a home screen and full-screen apps.', shellSel)
+    );
+
+    const modeLabel = el('div', 'muted');
+    modeLabel.style.fontSize = 'var(--lume-fs-xs)';
+    modeLabel.style.margin = '-4px 0 10px 4px';
+    modeLabel.textContent = `Active: ${ctx.kernel.shellMode()}`;
+    layout.appendChild(modeLabel);
+
+    content.appendChild(layout);
+
+    /* ================= Backend ================= */
+    const backend = section('C backend connection');
+
+    const url = el('input');
     url.type = 'text';
-    url.placeholder = 'same origin (default)';
+    url.placeholder = 'Same origin (default)';
     url.value = osState.settings.serverUrl;
-    url.style.width = '240px';
+    url.setAttribute('aria-label', 'Server URL');
 
-    const token = document.createElement('input');
+    const token = el('input');
     token.type = 'password';
     token.placeholder = 'X-Lume-Token (optional)';
     token.value = osState.settings.token;
-    token.style.width = '240px';
+    token.setAttribute('aria-label', 'Session token');
 
-    const applyBtn = document.createElement('button');
-    applyBtn.className = 'primary';
-    applyBtn.textContent = 'Apply & Reconnect';
-    applyBtn.onclick = async () => {
+    const statusBadge = el('span', 'badge');
+    const applyBtn = el('button', 'primary', 'Apply and reconnect');
+    applyBtn.type = 'button';
+
+    const refreshBadge = (): void => {
+      const online = ctx.kernel.isServerOnline();
+      statusBadge.className = `badge ${online ? 'badge--ok' : 'badge--off'}`;
+      statusBadge.replaceChildren(iconEl(online ? 'cloud' : 'cloudOff', 12));
+      statusBadge.appendChild(document.createTextNode(online ? 'online' : 'offline'));
+    };
+    refreshBadge();
+
+    applyBtn.addEventListener('click', async () => {
+      applyBtn.disabled = true;
+      applyBtn.textContent = 'Connecting…';
       await osState.update({ serverUrl: url.value.trim(), token: token.value });
       const online = await ctx.kernel.refreshServerStatus();
-      statusBadge.textContent = online ? 'online' : 'offline';
-      statusBadge.className = `badge ${online ? 'badge--ok' : 'badge--off'}`;
-      ctx.kernel.notify('Backend', online ? 'Connected' : 'Unreachable', online ? 'success' : 'error');
-    };
+      refreshBadge();
+      applyBtn.disabled = false;
+      applyBtn.textContent = 'Apply and reconnect';
+      ctx.kernel.notify(
+        'Backend',
+        online ? 'Connected to the C backend.' : 'Could not reach the C backend.',
+        online ? 'success' : 'error'
+      );
+    });
 
-    const statusBadge = document.createElement('span');
-    statusBadge.className = `badge ${ctx.kernel.isServerOnline() ? 'badge--ok' : 'badge--off'}`;
-    statusBadge.textContent = ctx.kernel.isServerOnline() ? 'online' : 'offline';
+    const statusRow = el('div', 'settings__row');
+    const statusLabel = el('label');
+    statusLabel.textContent = 'Status';
+    statusRow.append(statusLabel, statusBadge, applyBtn);
+    backend.append(
+      row('Server URL', 'Leave empty to use the page origin.', url),
+      row('Session token', 'Required only when the server runs with --secure.', token),
+      statusRow
+    );
 
-    backend.append(row('Server URL', url), row('Session token', token));
-    const statusRow = document.createElement('div');
-    statusRow.className = 'settings__row';
-    statusRow.append(document.createElement('label'), statusBadge, applyBtn);
-    (statusRow.querySelector('label') as HTMLElement).textContent = 'Status';
-    backend.appendChild(statusRow);
-
-    const prefer = document.createElement('input');
+    const prefer = el('input');
     prefer.type = 'checkbox';
     prefer.checked = osState.settings.preferServer;
-    prefer.onchange = () => void osState.update({ preferServer: prefer.checked });
-    backend.appendChild(row('Prefer server-backed VFS when online', prefer));
+    prefer.setAttribute('aria-label', 'Prefer server storage');
+    prefer.addEventListener('change', () =>
+      void osState.update({ preferServer: prefer.checked }).then(() => ctx.kernel.refreshServerStatus())
+    );
+    backend.appendChild(
+      row('Prefer server storage', 'When online, the VFS reads and writes through the backend.', prefer)
+    );
 
     content.appendChild(backend);
 
-    /* ---- Storage inspector ---- */
-    const storage = section('Storage Inspector');
-    const bar = document.createElement('div');
-    bar.className = 'storage-bar';
-    const used = document.createElement('span');
-    used.style.background = 'linear-gradient(90deg,#6ea8fe,#a06bff)';
-    bar.appendChild(used);
-
-    const legend = document.createElement('div');
-    legend.className = 'storage-legend';
-
-    const usageText = document.createElement('div');
-    usageText.className = 'muted';
-
-    storage.append(bar, legend, usageText);
-    content.appendChild(storage);
+    /* ================= Storage ================= */
+    const storage = section('Storage');
+    const meter = el('div', 'meter');
+    const fill = el('span');
+    meter.appendChild(fill);
+    const caption = el('div', 'muted');
+    caption.style.fontSize = 'var(--lume-fs-xs)';
+    caption.style.marginTop = '6px';
+    storage.append(meter, caption);
 
     const refreshUsage = async (): Promise<void> => {
       const { usage, quota } = await ctx.kernel.vfs.usage();
       const pct = quota > 0 ? Math.min(100, (usage / quota) * 100) : 0;
-      used.style.width = `${pct.toFixed(1)}%`;
-      usageText.textContent = `${fmtBytes(usage)} used of ${fmtBytes(quota)} quota (${pct.toFixed(1)}%)`;
-      legend.innerHTML =
-        `<span><span class="swatch" style="background:#6ea8fe"></span>Origin usage</span>` +
-        `<span><span class="swatch" style="background:rgba(255,255,255,0.15)"></span>Free</span>`;
+      fill.style.width = `${pct}%`;
+      caption.textContent = quota
+        ? `${fmtBytes(usage)} used of ${fmtBytes(quota)} (${pct.toFixed(1)}%)`
+        : 'Storage estimate unavailable in this browser.';
     };
     void refreshUsage();
 
-    /* ---- Source export ---- */
-    const source = section('LumeOS Source');
-    const exportBtn = document.createElement('button');
-    exportBtn.className = 'primary';
-    exportBtn.textContent = '⬇ Download LumeOS Source (.tar.gz)';
-    exportBtn.onclick = () => window.open(ctx.kernel.api.sourceExportUrl(), '_blank');
-    const exportRow = document.createElement('div');
-    exportRow.className = 'settings__row';
-    const exportLabel = document.createElement('label');
-    exportLabel.textContent = 'Export the complete C + TypeScript project source.';
-    exportRow.append(exportLabel, exportBtn);
-    source.appendChild(exportRow);
+    const usageBtn = el('button', undefined, 'Refresh');
+    usageBtn.type = 'button';
+    usageBtn.addEventListener('click', () => void refreshUsage());
+    storage.appendChild(row('Browser storage', 'IndexedDB, OPFS and caches for this origin.', usageBtn));
+    content.appendChild(storage);
 
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'Reset all settings';
-    resetBtn.onclick = () => void osState.reset().then(() => ctx.kernel.notify('Settings reset', '', 'success'));
-    const resetRow = document.createElement('div');
-    resetRow.className = 'settings__row';
-    const resetLabel = document.createElement('label');
-    resetLabel.textContent = 'Restore default theme and connection settings.';
-    resetRow.append(resetLabel, resetBtn);
-    source.appendChild(resetRow);
+    /* ================= About / source ================= */
+    const about = section('About LumeOS');
+    const exportBtn = el('button', 'primary', 'Download source (.tar.gz)');
+    exportBtn.type = 'button';
+    exportBtn.addEventListener('click', () =>
+      window.open(ctx.kernel.api.sourceExportUrl(), '_blank')
+    );
+    about.appendChild(row('Project source', 'Complete C + TypeScript source tree.', exportBtn));
 
-    content.appendChild(source);
+    const resetBtn = el('button', 'danger', 'Reset settings');
+    resetBtn.type = 'button';
+    resetBtn.addEventListener('click', async () => {
+      const ok = await confirmDialog(
+        'Reset settings',
+        'Theme, accent, wallpaper, layout and connection settings will return to their defaults.'
+      );
+      if (!ok) return;
+      await osState.reset();
+      ctx.kernel.notify('Settings reset', 'Defaults restored.', 'success');
+      themeSel.value = osState.settings.theme;
+      wallSel.value = osState.settings.wallpaper;
+      shellSel.value = osState.settings.shell;
+      motion.checked = osState.settings.reducedMotion;
+      url.value = osState.settings.serverUrl;
+      token.value = osState.settings.token;
+      prefer.checked = osState.settings.preferServer;
+      modeLabel.textContent = `Active: ${ctx.kernel.shellMode()}`;
+      refreshBadge();
+    });
+    about.appendChild(row('Reset', 'Restore all defaults.', resetBtn));
+
+    const version = el('div', 'muted');
+    version.style.fontSize = 'var(--lume-fs-xs)';
+    version.textContent = 'LumeOS v1.1.0 · hybrid web desktop (C backend + TypeScript shell)';
+    about.appendChild(version);
+
+    content.appendChild(about);
   },
 };
