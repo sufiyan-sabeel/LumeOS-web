@@ -92,6 +92,14 @@ class LumeKernel implements KernelApi, DesktopHost {
     await osState.load();
     osState.applyTheme();
 
+    /* Deep link: ?backend=https://lumeos-api.<sub>.workers.dev points this
+     * session at a hosted backend without touching Settings. */
+    const backendParam = new URLSearchParams(location.search).get('backend');
+    if (backendParam) {
+      osState.settings.serverUrl = backendParam.trim();
+      void osState.save();
+    }
+
     boot('Opening local storage…', 30);
     try {
       await idb.open();

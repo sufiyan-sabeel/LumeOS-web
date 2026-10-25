@@ -84,6 +84,12 @@ export interface SystemInfo {
   disk_free_bytes: number;
   lume_version: string;
   time: string;
+  /* Present when the backend is an edge runtime (Cloudflare Worker). */
+  runtime?: string;
+  telemetry?: boolean;
+  note?: string;
+  colo?: string | null;
+  country?: string | null;
 }
 
 export interface FileEntry {

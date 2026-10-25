@@ -612,16 +612,23 @@ export class Desktop {
     } else {
       const dl = document.createElement('dl');
       dl.className = 'info-grid';
+      /* An edge runtime (Cloudflare Worker) cannot observe host CPU, memory,
+       * load or disk. Show those as unavailable instead of as zero. */
+      const edge = info.telemetry === false;
+      const na = '—';
       const rows: Array<[string, string]> = [
         ['OS', `${info.os} ${info.kernel}`],
         ['Architecture', info.arch],
         ['Host', info.hostname],
-        ['CPU cores', String(info.cpus)],
-        ['Memory free', `${(info.mem_available_kb / 1024).toFixed(0)} MB`],
-        ['Load (1m)', info.load1.toFixed(2)],
-        ['Disk free', fmtBytes(info.disk_free_bytes)],
+        ['CPU cores', edge ? na : String(info.cpus)],
+        ['Memory free', edge ? na : `${(info.mem_available_kb / 1024).toFixed(0)} MB`],
+        ['Load (1m)', edge ? na : info.load1.toFixed(2)],
+        ['Disk free', edge ? na : fmtBytes(info.disk_free_bytes)],
         ['LumeOS', `v${info.lume_version}`],
       ];
+      if (info.runtime) rows.push(['Runtime', info.runtime]);
+      if (info.colo) rows.push(['Edge location', String(info.colo)]);
+      if (info.country) rows.push(['Edge country', String(info.country)]);
       for (const [k, v] of rows) {
         const dt = document.createElement('dt');
         dt.textContent = k;
@@ -630,6 +637,13 @@ export class Desktop {
         dl.append(dt, dd);
       }
       panel.appendChild(dl);
+      if (info.note) {
+        const note = document.createElement('div');
+        note.className = 'muted';
+        note.style.cssText = 'font-size:var(--lume-fs-xs);margin-top:8px;line-height:1.5';
+        note.textContent = info.note;
+        panel.appendChild(note);
+      }
     }
 
     panel.appendChild(this.heading('Diagnostics'));

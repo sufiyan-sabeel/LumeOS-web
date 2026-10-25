@@ -1,0 +1,37 @@
+# LumeOS edge backend (Cloudflare Worker)
+#
+# Deploy:
+#   cd backend/worker
+#   npx wrangler login
+#   npx wrangler deploy
+#
+# The Worker works with no bindings at all: health, system info and the package
+# catalogue respond immediately. File storage is optional.
+
+name = "lumeos-api"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# ---------------------------------------------------------------------------
+# Optional: persistent file storage for /api/files/*
+#
+#   npx wrangler kv namespace create LUME_FS
+#
+# Copy the printed id into `id` below and remove the leading '#'. Without this
+# binding the file routes return 501 with instructions, and the LumeOS client
+# simply keeps using local storage for files.
+# ---------------------------------------------------------------------------
+# [[kv_namespaces]]
+# binding = "LUME_FS"
+# id = "REPLACE_WITH_NAMESPACE_ID"
+
+# ---------------------------------------------------------------------------
+# Optional: require X-Lume-Token on write endpoints.
+#
+#   npx wrangler secret put LUME_TOKEN
+#
+# Then paste the same value into LumeOS Settings -> Session token.
+# ---------------------------------------------------------------------------
+
+[observability]
+enabled = true

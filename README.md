@@ -88,6 +88,8 @@ There are four suites in total:
 | Static site E2E | `make test-e2e` | headless Chromium: boot from a subpath, App Store catalog, install, offline launch |
 | Responsive / interaction | `python3 tests/responsive_e2e.py` | all six viewports, desktop + mobile shells, window controls, keyboard management, panels, persistence, breakpoint switching |
 | User journey | `python3 tests/journey_e2e.py` | opens all nine apps, checks each renders, runs the install flow, exercises the no-archive fallback, verifies diagnostics, reports every uncaught error |
+| Edge backend | `make test-worker` | Worker routes against stubbed KV: CRUD, traversal rejection, size limits, token auth, honest 501s |
+| Edge integration | `make test-edge` | frontend ↔ Worker over **cross-origin CORS**: connects, reports online, round-trips files |
 
 
 ---
@@ -307,6 +309,40 @@ To have the backend online:
 context, local storage tier, IndexedDB, archive extraction, service worker and
 backend reachability — and explains what to do about each one. The same list
 appears in the notification-centre panel.
+
+## Hosted edge backend (Cloudflare Worker)
+
+The native C backend **cannot run on Cloudflare** — Workers provide no sockets,
+threads or filesystem. `backend/worker/` is a Worker that implements the same
+HTTP contract, so a frontend hosted on a static site can talk to a real HTTPS
+backend.
+
+```bash
+cd backend/worker
+npx wrangler login          # once, opens a browser
+npx wrangler deploy
+```
+
+Wrangler prints a URL such as
+`https://lumeos-api.<your-subdomain>.workers.dev`. Point LumeOS at it either in
+**Settings → C backend connection → Server URL**, or with a deep link:
+
+```
+https://<your-site>/?backend=https://lumeos-api.<your-subdomain>.workers.dev
+```
+
+| Capability | Native C server | Edge Worker |
+|---|---|---|
+| `/api/health` | yes | yes |
+| `/api/system/info` | real CPU/RAM/load/disk | edge metadata only (`telemetry: false`); the UI shows `—` rather than fake zeros |
+| `/api/packages` | scans `packages/` | bundled catalogue |
+| `/api/files/*` CRUD | `data/files/` on disk | Workers KV (optional binding) |
+| `/api/system/exec-native` | allow-listed binaries | `501` — not possible |
+| `/api/export/project` | tars the source tree | `501` — needs a filesystem |
+
+KV is optional: with no binding the Worker still answers health, system info and
+packages (file routes return `501`), which is enough to bring the backend
+*online*. See `backend/worker/README.md` for enabling KV storage and token auth.
 
 ### Storage tiers
 

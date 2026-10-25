@@ -165,7 +165,7 @@ export const settingsApp: LumeApp = {
 
     const url = el('input');
     url.type = 'text';
-    url.placeholder = 'Same origin (default)';
+    url.placeholder = 'https://lumeos-api.<sub>.workers.dev';
     url.value = osState.settings.serverUrl;
     url.setAttribute('aria-label', 'Server URL');
 
@@ -207,7 +207,9 @@ export const settingsApp: LumeApp = {
     statusLabel.textContent = 'Status';
     statusRow.append(statusLabel, statusBadge, applyBtn);
     backend.append(
-      row('Server URL', 'Leave empty to use the page origin.', url),
+      row('Server URL',
+          'Leave empty to use the page origin. For a hosted backend, paste its https:// URL ' +
+          '(for example a Cloudflare Worker from backend/worker/).', url),
       row('Session token', 'Required only when the server runs with --secure.', token),
       statusRow
     );

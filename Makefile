@@ -31,7 +31,7 @@ PAYLOAD_PKGS := hello-canvas markdown-studio tiny-ai
 
 CFLAGS += -Iengine -Ibackend/include
 
-.PHONY: all backend frontend run test test-zip test-e2e test-journey test-responsive clean package-source pages release-assets deps help
+.PHONY: all backend frontend run test test-zip test-e2e test-journey test-responsive test-worker test-edge worker-deploy clean package-source pages release-assets deps help
 
 all: backend frontend
 
@@ -144,6 +144,15 @@ test-e2e: pages
 test-journey: pages
 	python3 tests/journey_e2e.py
 
+test-worker:
+	node tests/worker_test.mjs
+
+test-edge: pages
+	python3 tests/edge_e2e.py
+
+worker-deploy:
+	@cd backend/worker && npx wrangler deploy
+
 test-responsive: pages
 	python3 tests/responsive_e2e.py
 
@@ -166,6 +175,9 @@ help:
 	@echo "  make test-e2e       browser end-to-end test of the static build"
 	@echo "  make test-journey   open every app + install flow, report errors"
 	@echo "  make test-responsive  six viewports, both shells, interactions"
+	@echo "  make test-worker    test the Cloudflare Worker backend"
+	@echo "  make test-edge      frontend <-> edge backend, cross-origin"
+	@echo "  make worker-deploy  deploy the edge backend with wrangler"
 	@echo "  make package-source create build/lumeos-source.tar.gz"
 	@echo "  make pages          build the static GitHub Pages site"
 	@echo "  make release-assets build .lume archives + source tarball"
