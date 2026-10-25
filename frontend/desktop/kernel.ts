@@ -6,20 +6,21 @@
  */
 
 import { osState } from './state.js';
-import { appUrl } from './base.js';
+import { appUrl, appBasePath } from './base.js';
 import { bus } from './events.js';
 import { Desktop, type DesktopHost, type WindowEntry } from './desktop.js';
 import { WindowManager } from './window-manager.js';
 import { MobileShell } from './mobile.js';
 import { registry } from '../apps/registry.js';
 import { ApiClient } from '../storage/api.js';
-import { opfs } from '../storage/opfs.js';
+import { localFs } from '../storage/local-fs.js';
 import { Vfs } from '../storage/vfs.js';
 import { idb, STORE_REGISTRY } from '../storage/idb.js';
 import { toast } from '../components/toast.js';
 import type {
   AppContext,
   AppManifest,
+  DiagItem,
   FileEntry,
   InstalledAppInfo,
   KernelApi,
@@ -78,7 +79,7 @@ class LumeKernel implements KernelApi, DesktopHost {
   private mq: MediaQueryList | null = null;
 
   constructor() {
-    this.vfs = new Vfs(opfs, this.api);
+    this.vfs = new Vfs(localFs, this.api);
   }
 
   /* ================================================================== */
@@ -97,10 +98,12 @@ class LumeKernel implements KernelApi, DesktopHost {
     } catch {
       /* IndexedDB may be unavailable (private mode) */
     }
-    await opfs.available();
+    await localFs.available();
 
     boot('Connecting to C backend…', 55);
-    this.api.base = osState.settings.serverUrl;
+    /* Resolve the API against the site base so LumeOS works when served from
+     * the domain root or from a subpath such as /LumeOS-web/. */
+    this.api.base = osState.settings.serverUrl || appBasePath();
     this.api.token = osState.settings.token;
     this.vfs.preferServer = osState.settings.preferServer;
     const online = await this.api.health();
@@ -368,7 +371,7 @@ class LumeKernel implements KernelApi, DesktopHost {
   }
 
   async refreshServerStatus(): Promise<boolean> {
-    this.api.base = osState.settings.serverUrl;
+    this.api.base = osState.settings.serverUrl || appBasePath();
     this.api.token = osState.settings.token;
     this.vfs.preferServer = osState.settings.preferServer;
     const online = await this.api.health();
@@ -400,12 +403,90 @@ class LumeKernel implements KernelApi, DesktopHost {
     registry.unregister(id);
     this.wm.closeByApp(id);
     try {
-      await opfs.remove(`/${id}`);
+      await localFs.remove(`/${id}`);
     } catch {
       /* ignore */
     }
     this.desktop.renderIcons();
     this.mobile.renderHome();
+  }
+
+  /* ================================================================== */
+  /* Diagnostics                                                        */
+  /* ================================================================== */
+  async diagnostics(): Promise<DiagItem[]> {
+    const items: DiagItem[] = [];
+
+    const secure = typeof window !== 'undefined' && window.isSecureContext;
+    items.push({
+      label: 'Secure context',
+      ok: secure,
+      detail: secure
+        ? 'Yes — service workers, local storage and crypto are available.'
+        : 'No — LumeOS is being served over http:// on a non-localhost host. ' +
+          'Use https:// or http://localhost; otherwise storage and offline features are blocked.',
+    });
+
+    const tier = localFs.tier();
+    items.push({
+      label: 'Local file storage',
+      ok: tier !== 'none',
+      detail:
+        tier === 'opfs'
+          ? 'OPFS — fast, large capacity.'
+          : tier === 'idb'
+            ? 'IndexedDB fallback — OPFS is unavailable in this browser, so files are stored in IndexedDB.'
+            : 'Unavailable — files cannot be saved locally in this browser.',
+    });
+
+    let idbOk = true;
+    try {
+      await idb.open();
+    } catch {
+      idbOk = false;
+    }
+    items.push({
+      label: 'IndexedDB',
+      ok: idbOk,
+      detail: idbOk
+        ? 'Available — settings and installed apps persist.'
+        : 'Blocked (often private browsing). Settings and installs will not persist.',
+    });
+
+    const ds = typeof DecompressionStream !== 'undefined';
+    items.push({
+      label: '.lume archive extraction',
+      ok: ds,
+      detail: ds
+        ? 'Supported — packages install from a single .lume archive.'
+        : 'Not supported by this browser — packages install file by file instead.',
+    });
+
+    let swOk = false;
+    let swDetail = 'Not registered.';
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      swOk = regs.length > 0;
+      swDetail = swOk
+        ? 'Registered — installed apps can launch offline.'
+        : 'Not registered — installed apps cannot be served offline.';
+    } catch {
+      swDetail = 'Unavailable in this browser or context.';
+    }
+    items.push({ label: 'Service worker', ok: swOk, detail: swDetail });
+
+    const apiUrl = this.api.healthUrl();
+    items.push({
+      label: 'C backend',
+      ok: this.api.online,
+      detail: this.api.online
+        ? `Connected — ${apiUrl}`
+        : `Not reachable at ${apiUrl}. A static host such as GitHub Pages cannot run the ` +
+          'C server. To bring the backend online, run "make run" and open ' +
+          'http://localhost:8080, or set an https:// backend URL in Settings.',
+    });
+
+    return items;
   }
 
   installedApps(): InstalledAppInfo[] {

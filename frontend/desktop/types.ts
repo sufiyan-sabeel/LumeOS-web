@@ -116,6 +116,13 @@ export interface VfsApi {
   removeFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<void>;
 }
 
+/** One capability/environment check surfaced to the user. */
+export interface DiagItem {
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+
 export interface InstalledAppInfo {
   id: string;
   name: string;
@@ -137,6 +144,8 @@ export interface KernelApi {
   shellMode(): ShellMode;
   shellPreference(): ShellPreference;
   setShellPreference(pref: ShellPreference): void;
+  /** Environment and capability checks, with remediation advice. */
+  diagnostics(): Promise<DiagItem[]>;
   /** Register an installed web app and add it to the desktop. */
   installWebApp(info: InstalledAppInfo): Promise<void>;
   uninstallApp(id: string): Promise<void>;

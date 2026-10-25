@@ -33,7 +33,17 @@ export class ApiClient {
   public online = false;
 
   private url(path: string): string {
-    return `${this.base}${path}`;
+    return `${this.baseUrl()}${path}`;
+  }
+
+  /** The resolved base actually used for API calls, without a trailing slash. */
+  baseUrl(): string {
+    return this.base.replace(/\/+$/, '');
+  }
+
+  /** Absolute-or-root-relative URL of the health endpoint, for diagnostics. */
+  healthUrl(): string {
+    return this.url('/api/health');
   }
 
   private headers(extra?: Record<string, string>): Record<string, string> {

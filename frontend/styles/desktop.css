@@ -414,3 +414,35 @@
 /* Storage meter, shared by quick settings and the Settings app. */
 .meter { height: 6px; border-radius: 99px; background: var(--lume-line-2); overflow: hidden; }
 .meter > span { display: block; height: 100%; background: var(--lume-accent); }
+
+/* =====================================================================
+   Dock separator and diagnostics list
+   ===================================================================== */
+.dock__sep {
+  width: 1px;
+  height: 26px;
+  margin: 0 var(--lume-sp-2);
+  background: var(--lume-line-2);
+  flex: none;
+}
+
+.diag-list { display: flex; flex-direction: column; gap: var(--lume-sp-2); }
+.diag {
+  display: flex;
+  gap: var(--lume-sp-3);
+  padding: var(--lume-sp-2) var(--lume-sp-3);
+  border: 1px solid var(--lume-line);
+  border-radius: var(--lume-r-md);
+  background: var(--lume-s1);
+}
+.diag__icon { margin-top: 2px; flex: none; }
+.diag--ok .diag__icon { color: var(--lume-ok); }
+.diag--bad { border-color: var(--lume-danger-dim); }
+.diag--bad .diag__icon { color: var(--lume-danger); }
+.diag__label { font-size: var(--lume-fs-sm); font-weight: 600; }
+.diag__detail {
+  font-size: var(--lume-fs-xs);
+  color: var(--lume-text-2);
+  line-height: 1.55;
+  word-break: break-word;
+}

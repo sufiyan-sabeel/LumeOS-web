@@ -288,5 +288,44 @@ export const settingsApp: LumeApp = {
     about.appendChild(version);
 
     content.appendChild(about);
+
+    /* ================= Diagnostics ================= */
+    const diag = section('Diagnostics');
+    const diagHint = el('div', 'muted');
+    diagHint.style.fontSize = 'var(--lume-fs-xs)';
+    diagHint.style.marginBottom = 'var(--lume-sp-3)';
+    diagHint.textContent =
+      'Environment checks for this browser. Anything marked with a warning explains what is unavailable and how to fix it.';
+    diag.appendChild(diagHint);
+
+    const diagList = el('div', 'diag-list');
+    diag.appendChild(diagList);
+
+    const renderDiag = async (): Promise<void> => {
+      diagList.replaceChildren();
+      const items = await ctx.kernel.diagnostics();
+      for (const it of items) {
+        const row = el('div', `diag ${it.ok ? 'diag--ok' : 'diag--bad'}`);
+        row.appendChild(iconEl(it.ok ? 'checkCircle' : 'alert', 15, 'diag__icon'));
+        const text = el('div');
+        text.appendChild(el('div', 'diag__label', it.label));
+        text.appendChild(el('div', 'diag__detail', it.detail));
+        row.appendChild(text);
+        diagList.appendChild(row);
+      }
+    };
+    void renderDiag();
+
+    const recheckBtn = el('button', undefined, 'Re-run checks');
+    recheckBtn.type = 'button';
+    recheckBtn.addEventListener('click', () => {
+      void ctx.kernel.refreshServerStatus().then(() => {
+        refreshBadge();
+        void renderDiag();
+      });
+    });
+    diag.appendChild(row('Re-check', 'Reconnect to the backend and re-run every check.', recheckBtn));
+
+    content.appendChild(diag);
   },
 };

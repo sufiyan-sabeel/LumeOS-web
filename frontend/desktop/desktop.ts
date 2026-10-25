@@ -4,7 +4,7 @@
  * notification centre with quick settings, and context menus.
  */
 
-import type { AppManifest, ShellMode, ShellPreference, SystemInfo } from './types.js';
+import type { AppManifest, DiagItem, ShellMode, ShellPreference, SystemInfo } from './types.js';
 import { bus } from './events.js';
 import { iconEl, mountIcon, iconHtml } from '../components/icons.js';
 
@@ -33,6 +33,7 @@ export interface DesktopHost {
   shellPreference(): ShellPreference;
   setShellPreference(pref: ShellPreference): void;
   shellMode(): ShellMode;
+  diagnostics(): Promise<DiagItem[]>;
 }
 
 export interface Notice {
@@ -41,6 +42,9 @@ export interface Notice {
   kind: 'info' | 'success' | 'error';
   time: number;
 }
+
+export /* Applications pinned to the dock on every desktop session. */
+const PINNED_DOCK = ['files', 'terminal', 'notes', 'settings', 'app-store'];
 
 export const WALLPAPERS: Array<{ name: string; value: string }> = [
   {
@@ -316,38 +320,57 @@ export class Desktop {
 
     const entries = this.host.windows();
     const active = this.host.activeWindowId();
+    const byApp = new Map(entries.map((e) => [e.appId, e]));
+    const manifests = this.host.manifests();
+    const shown = new Set<string>();
 
-    if (entries.length === 0) {
-      const hint = document.createElement('span');
-      hint.className = 'muted';
-      hint.style.fontSize = 'var(--lume-fs-sm)';
-      hint.style.paddingLeft = '6px';
-      hint.textContent = 'No applications running';
-      items.appendChild(hint);
-      return;
-    }
-
-    for (const e of entries) {
+    const addItem = (m: AppManifest, running: WindowEntry | undefined): void => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'dock__item running';
-      if (e.id === active && !e.minimized) btn.classList.add('active');
-      btn.title = e.manifest.name;
-      btn.setAttribute('aria-label', `${e.manifest.name}${e.minimized ? ' (minimised)' : ''}`);
-      if (e.manifest.icon) mountIcon(btn, e.manifest.icon, 20);
-      else if (e.manifest.glyph) btn.textContent = e.manifest.glyph;
+      btn.className = 'dock__item';
+      if (running) btn.classList.add('running');
+      if (running && running.id === active && !running.minimized) btn.classList.add('active');
+      btn.title = running
+        ? `${m.name}${running.minimized ? ' (minimised)' : ''}`
+        : `Open ${m.name}`;
+      btn.setAttribute('aria-label', btn.title);
+      if (m.icon) mountIcon(btn, m.icon, 20);
+      else if (m.glyph) btn.textContent = m.glyph;
       else mountIcon(btn, 'file', 20);
 
       btn.addEventListener('click', () => {
-        if (e.id === active && !e.minimized) this.host.closeWindow(e.id);
-        else this.host.focusWindow(e.id);
+        if (running) {
+          if (running.id === active && !running.minimized) this.host.closeWindow(running.id);
+          else this.host.focusWindow(running.id);
+        } else {
+          this.host.launch(m.id);
+        }
       });
       btn.addEventListener('contextmenu', (ev) => {
         ev.preventDefault();
-        this.openWindowMenu(e, ev.clientX, ev.clientY);
+        if (running) this.openWindowMenu(running, ev.clientX, ev.clientY);
+        else this.openAppMenu(m, ev.clientX, ev.clientY);
       });
       items.appendChild(btn);
+    };
+
+    /* Pinned applications are always one click away, so core apps such as
+     * Settings are reachable without hunting through the launcher. */
+    for (const id of PINNED_DOCK) {
+      const m = manifests.find((x) => x.id === id);
+      if (!m) continue;
+      addItem(m, byApp.get(id));
+      shown.add(id);
     }
+
+    const others = entries.filter((e) => !shown.has(e.appId));
+    if (others.length > 0) {
+      const sep = document.createElement('div');
+      sep.className = 'dock__sep';
+      sep.setAttribute('aria-hidden', 'true');
+      items.appendChild(sep);
+    }
+    for (const e of others) addItem(e.manifest, e);
   }
 
   /* ================================================================== */
@@ -571,7 +594,7 @@ export class Desktop {
     }
 
     /* info */
-    panel.appendChild(this.heading('System'));
+    panel.appendChild(this.heading('System', () => void this.host.serverInfo().then(() => this.renderPanelBody()), 'Re-check'));
     const info = await this.host.serverInfo();
     if (!info) {
       const warn = document.createElement('div');
@@ -608,8 +631,41 @@ export class Desktop {
       }
       panel.appendChild(dl);
     }
+
+    panel.appendChild(this.heading('Diagnostics'));
+    panel.appendChild(await this.diagBlock());
+
     panel.appendChild(this.heading('Storage'));
     panel.appendChild(await this.storageBlock());
+  }
+
+  /** Capability checks with plain-language remediation for each failure. */
+  private async diagBlock(): Promise<HTMLElement> {
+    const wrap = document.createElement('div');
+    wrap.className = 'diag-list';
+    let items: DiagItem[] = [];
+    try {
+      items = await this.host.diagnostics();
+    } catch (e) {
+      wrap.textContent = `Diagnostics unavailable: ${(e as Error).message}`;
+      return wrap;
+    }
+    for (const it of items) {
+      const row = document.createElement('div');
+      row.className = `diag ${it.ok ? 'diag--ok' : 'diag--bad'}`;
+      row.appendChild(iconEl(it.ok ? 'checkCircle' : 'alert', 15, 'diag__icon'));
+      const text = document.createElement('div');
+      const label = document.createElement('div');
+      label.className = 'diag__label';
+      label.textContent = it.label;
+      const detail = document.createElement('div');
+      detail.className = 'diag__detail';
+      detail.textContent = it.detail;
+      text.append(label, detail);
+      row.appendChild(text);
+      wrap.appendChild(row);
+    }
+    return wrap;
   }
 
   private heading(text: string, action?: () => void, actionLabel = ''): HTMLElement {

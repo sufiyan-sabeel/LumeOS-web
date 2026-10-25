@@ -7,7 +7,7 @@
 
 import type { FileEntry, VfsApi } from '../desktop/types.js';
 import type { ApiClient } from './api.js';
-import type { OpfsManager } from './opfs.js';
+import type { LocalFs } from './local-fs.js';
 
 export type VfsBackend = 'server' | 'opfs';
 
@@ -17,7 +17,7 @@ export class Vfs implements VfsApi {
   /** Records which backend served the most recent operation. */
   public lastBackend: VfsBackend = 'opfs';
 
-  constructor(private opfsMgr: OpfsManager, private api: ApiClient) {}
+  constructor(private local: LocalFs, private api: ApiClient) {}
 
   private norm(path: string): string {
     let p = path.trim();
@@ -43,7 +43,7 @@ export class Vfs implements VfsApi {
       }
     }
     this.lastBackend = 'opfs';
-    return this.opfsMgr.readText(p);
+    return this.local.readText(p);
   }
 
   async writeText(path: string, content: string): Promise<void> {
@@ -58,7 +58,7 @@ export class Vfs implements VfsApi {
       }
     }
     this.lastBackend = 'opfs';
-    await this.opfsMgr.writeText(p, content);
+    await this.local.writeText(p, content);
   }
 
   async list(path: string): Promise<FileEntry[]> {
@@ -73,7 +73,7 @@ export class Vfs implements VfsApi {
       }
     }
     this.lastBackend = 'opfs';
-    const entries = await this.opfsMgr.list(p);
+    const entries = await this.local.list(p);
     return entries.map((e) => ({
       name: e.name,
       type: e.type,
@@ -94,7 +94,7 @@ export class Vfs implements VfsApi {
       }
     }
     this.lastBackend = 'opfs';
-    await this.opfsMgr.mkdir(p);
+    await this.local.mkdir(p);
   }
 
   async remove(path: string): Promise<void> {
@@ -109,7 +109,7 @@ export class Vfs implements VfsApi {
       }
     }
     this.lastBackend = 'opfs';
-    await this.opfsMgr.remove(p);
+    await this.local.remove(p);
   }
 
   /**
@@ -126,7 +126,7 @@ export class Vfs implements VfsApi {
       return r.entries;
     }
     this.lastBackend = 'opfs';
-    const entries = await this.opfsMgr.list(this.norm(path));
+    const entries = await this.local.list(this.norm(path));
     return entries.map((e) => ({ name: e.name, type: e.type, size: e.size, mtime: 0 }));
   }
 
@@ -139,7 +139,7 @@ export class Vfs implements VfsApi {
       return r.content;
     }
     this.lastBackend = 'opfs';
-    return this.opfsMgr.readText(this.norm(path));
+    return this.local.readText(this.norm(path));
   }
 
   async writeFrom(source: 'auto' | 'server' | 'opfs', path: string, content: string): Promise<void> {
@@ -151,7 +151,7 @@ export class Vfs implements VfsApi {
       return;
     }
     this.lastBackend = 'opfs';
-    await this.opfsMgr.writeText(this.norm(path), content);
+    await this.local.writeText(this.norm(path), content);
   }
 
   async mkdirFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<void> {
@@ -161,7 +161,7 @@ export class Vfs implements VfsApi {
       await this.api.mkdir(this.norm(path));
       return;
     }
-    await this.opfsMgr.mkdir(this.norm(path));
+    await this.local.mkdir(this.norm(path));
   }
 
   async removeFrom(source: 'auto' | 'server' | 'opfs', path: string): Promise<void> {
@@ -171,7 +171,7 @@ export class Vfs implements VfsApi {
       await this.api.deletePath(this.norm(path));
       return;
     }
-    await this.opfsMgr.remove(this.norm(path));
+    await this.local.remove(this.norm(path));
   }
 
   async exists(path: string): Promise<boolean> {
@@ -184,11 +184,16 @@ export class Vfs implements VfsApi {
         /* not on server; still check OPFS */
       }
     }
-    return this.opfsMgr.exists(p);
+    return this.local.exists(p);
   }
 
   /** Storage usage across the whole origin (IndexedDB + OPFS + caches). */
   async usage(): Promise<{ usage: number; quota: number }> {
-    return this.opfsMgr.usage();
+    return this.local.usage();
+  }
+
+  /** Which local storage tier is active: 'opfs', 'idb' or 'none'. */
+  localTier(): string {
+    return this.local.tier();
   }
 }

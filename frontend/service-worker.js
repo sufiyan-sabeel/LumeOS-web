@@ -16,7 +16,7 @@
  *       * same-origin GET assets -> cache-first, then network
  */
 
-const VERSION = 'lume-v1.1.0';
+const VERSION = 'lume-v1.3.0';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 
@@ -75,12 +75,38 @@ function guessType(name) {
   return map[ext] || 'application/octet-stream';
 }
 
-/** Serve a site-relative path (already stripped of BASE) from OPFS. */
-async function serveFromOpfs(rel) {
+/** Read a file from the IndexedDB file store (local-fs.ts fallback tier). */
+async function serveFromIdb(rel) {
   try {
-    const clean = rel
-      .replace(/^apps\/installed\//, '')
-      .replace(/^__vfs__\//, '');
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('lumeos-fs', 1);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    if (!db.objectStoreNames.contains('vfs')) return new Response('Not found', { status: 404 });
+    const rec = await new Promise((resolve, reject) => {
+      const req = db.transaction('vfs', 'readonly').objectStore('vfs').get('/' + rel);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    if (!rec || rec.isDir) return new Response('Not found', { status: 404 });
+    return new Response(rec.blob, {
+      status: 200,
+      headers: { 'Content-Type': guessType(rec.name || rel) },
+    });
+  } catch (e) {
+    return new Response('Offline resource unavailable', { status: 404 });
+  }
+}
+
+/** Serve a site-relative path (already stripped of BASE) from local storage.
+ *  OPFS is preferred; the IndexedDB tier is used when OPFS is unavailable. */
+async function serveFromOpfs(rel) {
+  const clean = rel
+    .replace(/^apps\/installed\//, '')
+    .replace(/^__vfs__\//, '');
+
+  try {
     const parts = clean.split('/').filter(Boolean);
     const file = parts.pop();
     if (!file) return new Response('Not found', { status: 404 });
@@ -94,7 +120,8 @@ async function serveFromOpfs(rel) {
       headers: { 'Content-Type': guessType(file) },
     });
   } catch (e) {
-    return new Response('Offline resource unavailable', { status: 404 });
+    /* No OPFS, or the file is only in the IndexedDB tier. */
+    return serveFromIdb(clean);
   }
 }
 

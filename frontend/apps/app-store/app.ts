@@ -8,7 +8,7 @@
 import type { LumeApp, AppContext } from '../../desktop/types.js';
 import { downloads } from '../../desktop/downloads.js';
 import { appUrl } from '../../desktop/base.js';
-import { opfs } from '../../storage/opfs.js';
+import { localFs } from '../../storage/local-fs.js';
 import { unzip, normalizeEntryName } from '../../storage/zip.js';
 
 interface LumePackageManifest {
@@ -201,9 +201,23 @@ export const appStoreApp: LumeApp = {
 
         const root = pkg.type === 'web' ? `/${pkg.id}` : `/models/${pkg.id}`;
 
-        if (pkg.archive) {
-          /* Published .lume archive: a single download, extracted in-browser
-           * with the native DecompressionStream (see storage/zip.ts). */
+        /* Download every declared file individually. Works everywhere. */
+        const installPerFile = async (): Promise<void> => {
+          const files = pkg.files ?? ['index.html'];
+          const urls = files.map((f) => `${pkgBase(pkg.id)}/${f}`);
+          await downloads.start(pkg.name, pkg.type, urls, async (url, blob) => {
+            const rel = url.slice(pkgBase(pkg.id).length + 1);
+            const expected = pkg.checksums?.[rel];
+            if (expected) {
+              const actual = await sha256Hex(await blob.arrayBuffer());
+              if (actual !== expected) throw new Error(`checksum mismatch for ${rel}`);
+            }
+            await localFs.writeBlob(`${root}/${rel}`, blob);
+          });
+        };
+
+        /* Single .lume archive, extracted in-browser. Needs DecompressionStream. */
+        const installFromArchive = async (): Promise<void> => {
           const url = appUrl(`packages/${pkg.archive}`);
           await downloads.start(pkg.name, pkg.type, [url], async (_u, blob) => {
             const buffer = await blob.arrayBuffer();
@@ -217,25 +231,34 @@ export const appStoreApp: LumeApp = {
             for (const e of entries) {
               const rel = normalizeEntryName(e.name);
               if (!rel || rel === 'manifest.lume.json') continue;
-              await opfs.writeBlob(`${root}/${rel}`, new Blob([e.bytes as BlobPart]));
+              await localFs.writeBlob(`${root}/${rel}`, new Blob([e.bytes as BlobPart]));
             }
           });
+        };
+
+        const canUnzip = typeof DecompressionStream !== 'undefined';
+        if (pkg.archive && canUnzip) {
+          try {
+            await installFromArchive();
+          } catch (archiveErr) {
+            /* Older browsers, or a truncated archive: fall back to per-file. */
+            if ((pkg.files ?? []).length === 0) throw archiveErr;
+            ctx.kernel.notify(
+              'Using per-file download',
+              `Archive install failed (${(archiveErr as Error).message}); retrying file by file.`,
+              'info'
+            );
+            await installPerFile();
+          }
         } else {
-          /* Directory bundle: one download per declared file. */
-          const files = pkg.files ?? ['index.html'];
-          const urls = files.map((f) => `${pkgBase(pkg.id)}/${f}`);
-          await downloads.start(pkg.name, pkg.type, urls, async (url, blob) => {
-            const rel = url.slice(pkgBase(pkg.id).length + 1);
-            /* Verify integrity when a checksum is declared. */
-            const expected = pkg.checksums?.[rel];
-            if (expected) {
-              const actual = await sha256Hex(await blob.arrayBuffer());
-              if (actual !== expected) {
-                throw new Error(`checksum mismatch for ${rel}`);
-              }
-            }
-            await opfs.writeBlob(`${root}/${rel}`, blob);
-          });
+          if (pkg.archive && !canUnzip) {
+            ctx.kernel.notify(
+              'Compatibility mode',
+              'This browser cannot extract .lume archives, so files are downloaded individually.',
+              'info'
+            );
+          }
+          await installPerFile();
         }
 
         if (pkg.type === 'web') {
@@ -266,7 +289,7 @@ export const appStoreApp: LumeApp = {
     void loadCatalog();
     void (async () => {
       /* ensure OPFS is initialised before installs */
-      await opfs.available();
+      await localFs.available();
     })();
   },
 };

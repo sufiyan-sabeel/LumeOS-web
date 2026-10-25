@@ -10,7 +10,7 @@
  */
 
 import type { LumeApp, AppContext } from '../../desktop/types.js';
-import { opfs } from '../../storage/opfs.js';
+import { localFs } from '../../storage/local-fs.js';
 
 function el(tag: string, cls?: string, text?: string): HTMLElement {
   const e = document.createElement(tag);
@@ -157,7 +157,7 @@ export const aiCenterApp: LumeApp = {
       modelsBox.innerHTML = '';
       modelsBox.appendChild(el('h3', 'muted', 'Downloaded models (OPFS/models)'));
       try {
-        const models = await opfs.list('/models');
+        const models = await localFs.list('/models');
         if (models.length === 0) {
           modelsBox.appendChild(
             el('p', 'muted', 'No models downloaded. Use App Store → AI models.')
@@ -172,8 +172,14 @@ export const aiCenterApp: LumeApp = {
             modelsBox.appendChild(row);
           }
         }
-      } catch {
-        modelsBox.appendChild(el('p', 'muted', 'OPFS unavailable.'));
+      } catch (e) {
+        /* A missing /models folder is the normal case, not a failure. */
+        const name = (e as { name?: string } | null)?.name ?? '';
+        modelsBox.appendChild(
+          el('p', 'muted', name === 'NotFoundError'
+            ? 'No models downloaded yet. Use App Store → AI models.'
+            : `Could not read local storage: ${(e as Error).message}`)
+        );
       }
     };
 

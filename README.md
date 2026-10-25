@@ -87,6 +87,7 @@ There are four suites in total:
 | Archive reader | `make test-zip` | `.lume` ZIP extraction against real `zip` output (STORE + DEFLATE) |
 | Static site E2E | `make test-e2e` | headless Chromium: boot from a subpath, App Store catalog, install, offline launch |
 | Responsive / interaction | `python3 tests/responsive_e2e.py` | all six viewports, desktop + mobile shells, window controls, keyboard management, panels, persistence, breakpoint switching |
+| User journey | `python3 tests/journey_e2e.py` | opens all nine apps, checks each renders, runs the install flow, exercises the no-archive fallback, verifies diagnostics, reports every uncaught error |
 
 
 ---
@@ -281,6 +282,45 @@ See `docs/ARCHITECTURE.md` for the full design and `docs/PRD-ANALYSIS.md` for
 the requirements traceability matrix.
 
 ---
+
+## Getting the backend online
+
+The C backend **cannot run on a static host such as GitHub Pages** — Pages only
+serves files. On the live demo the status bar therefore reads *offline*, and
+LumeOS runs entirely from local storage. That is the design, not a failure.
+
+To have the backend online:
+
+1. **Run it locally (recommended).**
+   ```bash
+   make && make run     # http://localhost:8080
+   ```
+   Opening LumeOS from that address connects automatically — the frontend
+   probes `<site-base>/api/health`.
+
+2. **Self-host it and point the frontend at it.** Deploy the C server somewhere
+   reachable over **HTTPS**, then set *Settings → C backend connection → Server
+   URL*. An HTTPS page cannot call an `http://` backend — browsers block mixed
+   content — so the backend must be HTTPS too.
+
+**Settings → Diagnostics** reports the live state of every capability — secure
+context, local storage tier, IndexedDB, archive extraction, service worker and
+backend reachability — and explains what to do about each one. The same list
+appears in the notification-centre panel.
+
+### Storage tiers
+
+LumeOS prefers **OPFS** for local files and automatically falls back to an
+**IndexedDB file store** when OPFS is unavailable (older Android WebViews,
+some private-browsing modes). Both tiers are readable by the service worker, so
+installed apps launch offline either way. A missing file or directory is *not*
+treated as a storage failure.
+
+### Package installs
+
+`.lume` archives are extracted in-browser with `DecompressionStream`. If the
+browser does not support it, or extraction fails, the App Store automatically
+installs the package **file by file** instead, so installs still succeed.
 
 ## Deployment
 
